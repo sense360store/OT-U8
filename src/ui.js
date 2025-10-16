@@ -1,6 +1,6 @@
 const detailsContainer = document.getElementById("details");
 const authContainer = document.getElementById("auth-area");
-const toastEl = document.getElementById("toast");
+const toastRoot = document.getElementById("toast");
 
 let uiHandlers = {};
 
@@ -249,14 +249,50 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
   }
 }
 
-function showToast(message, { tone = "default", duration = 4000 } = {}) {
-  if (!toastEl) return;
-  toastEl.textContent = message;
-  toastEl.hidden = false;
-  toastEl.dataset.tone = tone;
-  setTimeout(() => {
-    toastEl.hidden = true;
-  }, duration);
+const DEFAULT_TOAST_DURATION = 3500;
+
+function showToast(message, typeOrOptions) {
+  if (!toastRoot || !message) return;
+
+  let tone = "info";
+  let duration = DEFAULT_TOAST_DURATION;
+
+  if (typeof typeOrOptions === "string") {
+    tone = typeOrOptions;
+  } else if (typeof typeOrOptions === "object" && typeOrOptions !== null) {
+    if (typeOrOptions.type) tone = typeOrOptions.type;
+    if (typeOrOptions.tone) tone = typeOrOptions.tone;
+    if (typeof typeOrOptions.duration === "number") {
+      duration = typeOrOptions.duration;
+    }
+  }
+
+  const normalizedTone = ["success", "error", "info"].includes(tone)
+    ? tone
+    : "info";
+
+  toastRoot.hidden = false;
+  toastRoot.setAttribute(
+    "aria-live",
+    normalizedTone === "error" ? "assertive" : "polite"
+  );
+
+  const toast = document.createElement("div");
+  toast.className = "toast-message";
+  toast.dataset.type = normalizedTone;
+  toast.setAttribute("role", "status");
+  toast.textContent = message;
+
+  toastRoot.appendChild(toast);
+
+  const removeToast = () => {
+    toast.remove();
+    if (!toastRoot.childElementCount) {
+      toastRoot.hidden = true;
+    }
+  };
+
+  window.setTimeout(removeToast, Math.max(duration, 3000));
 }
 
 window.App = window.App || {};

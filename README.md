@@ -21,26 +21,31 @@ A lightweight static web application that helps youth coaches respond to upcomin
    ```
    The app is framework-free, so there are no runtime dependencies to install.
 
-2. **Create a Firebase project**
-   - Enable **Authentication** with **Email/Password** and **Google** providers.
-   - Create a **Cloud Firestore** database in production mode.
-   - In the Firebase console, add a **Web App** and copy the config snippet.
+2. **Create and configure Firebase**
+   - In the Firebase console create a new **project** and register a **Web App** to reveal the config snippet.
+   - Under **Build → Authentication**, enable the **Google** sign-in provider (Email/Password is optional but supported).
+   - Under **Build → Firestore**, create a **Cloud Firestore** database in production mode for the project's default location.
 
 3. **Configure Firebase in the app**
-   - Open `index.html` and replace the `window.__FIREBASE_CONFIG` placeholder with your Firebase project's configuration.
-   - Do the same in `scripts/seed.html` if you plan to use the seeding helper page.
+   - Open `index.html` and replace the `window.__FIREBASE_CONFIG` placeholder with the config from your Firebase web app.
+   - If you plan to use the seeding helper page, repeat the change in `scripts/seed.html`.
 
-4. **Deploy Firestore security rules**
-   - Install the Firebase CLI if you have not already: `npm install -g firebase-tools`.
-   - Login and set your project: `firebase login` then `firebase use <your-project-id>`.
-   - Deploy the provided rules:
+4. **Publish Firestore security rules**
+   - Install the Firebase CLI if needed: `npm install -g firebase-tools`.
+   - Authenticate and target your project: `firebase login` then `firebase use <your-project-id>`.
+   - Deploy the bundled rules file:
      ```bash
      firebase deploy --only firestore:rules --project <your-project-id> --source rules/firestore.rules
      ```
 
-5. **Assign admin role (optional)**
-   - In Firestore, create a document at `roles/{uid}` for the first admin with contents `{ "role": "admin" }`.
-   - You can find your UID in the Authentication users table after signing in once.
+5. **Create the first admin record**
+   - After signing in once, find your user in **Authentication → Users** and copy the UID.
+   - In Firestore add a document at `roles/{uid}` with contents `{ "role": "admin" }` so you can manage events.
+
+6. **Enable GitHub Pages deployment**
+   - Push your changes to the `main` branch of your fork.
+   - In **Repository Settings → Pages**, choose **GitHub Actions** as the source.
+   - The included workflow (`.github/workflows/pages.yml`) uploads the static site and publishes it to Pages on every push to `main`.
 
 ## Development workflow
 

@@ -276,6 +276,21 @@ label span.required {
   outline-offset: 2px;
 }
 
+.fc .fc-daygrid-day.fc-day-today {
+  background: rgba(37, 99, 235, 0.12);
+  border-radius: 8px;
+}
+
+.fc .fc-list-day.fc-day-today {
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.fc .fc-list-day.fc-day-today .fc-list-day-text,
+.fc .fc-list-day.fc-day-today .fc-list-day-number {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
 .visually-hidden {
   border: 0 !important;
   clip: rect(1px, 1px, 1px, 1px);

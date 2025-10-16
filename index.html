@@ -107,7 +107,7 @@
       </div>
 
       <aside class="secondary-column" aria-label="Team schedule and session summary">
-        <section class="card calendar-card">
+        <section class="calendar-panel" aria-label="Team schedule">
           <div class="calendar-toolbar">
             <h2>Team schedule</h2>
             <div class="calendar-toggle" role="group" aria-label="Calendar view">
@@ -122,42 +122,44 @@
           <div id="calendar" class="calendar-surface" aria-live="polite"></div>
         </section>
 
-      <section class="card" id="event-summary">
-        <h2>Normalised session details</h2>
-        <p class="placeholder">Fill out the form to preview the saved session details.</p>
-        <dl class="summary-list" hidden>
-          <div class="summary-item">
-            <dt>Title</dt>
-            <dd data-field="title"></dd>
-          </div>
-          <div class="summary-item">
-            <dt>Location</dt>
-            <dd data-field="location"></dd>
-          </div>
-          <div class="summary-item">
-            <dt>Start (UTC)</dt>
-            <dd data-field="start"></dd>
-          </div>
-          <div class="summary-item">
-            <dt>End (UTC)</dt>
-            <dd data-field="end"></dd>
-          </div>
-          <div class="summary-item">
-            <dt>Notes</dt>
-            <dd data-field="notes"></dd>
-          </div>
-        </dl>
-      </section>
+        <section class="card" id="event-summary">
+          <h2>Normalised session details</h2>
+          <p class="placeholder">Fill out the form to preview the saved session details.</p>
+          <dl class="summary-list" hidden>
+            <div class="summary-item">
+              <dt>Title</dt>
+              <dd data-field="title"></dd>
+            </div>
+            <div class="summary-item">
+              <dt>Location</dt>
+              <dd data-field="location"></dd>
+            </div>
+            <div class="summary-item">
+              <dt>Start (UTC)</dt>
+              <dd data-field="start"></dd>
+            </div>
+            <div class="summary-item">
+              <dt>End (UTC)</dt>
+              <dd data-field="end"></dd>
+            </div>
+            <div class="summary-item">
+              <dt>Notes</dt>
+              <dd data-field="notes"></dd>
+            </div>
+          </dl>
+        </section>
 
-      <section class="card auth-card">
-        <h2>Coach access</h2>
-        <section id="auth-area" class="auth-area" aria-live="polite"></section>
-      </section>
+        <section class="card auth-card">
+          <h2>Coach access</h2>
+          <section id="auth-area" class="auth-area" aria-live="polite"></section>
+        </section>
 
-      <section class="card details-card">
-        <h2>Session RSVPs</h2>
-        <section id="details" class="details" aria-live="polite"></section>
-      </section>
+        <section class="details-panel details-card">
+          <h2>Session RSVPs</h2>
+          <section id="details" class="details" aria-live="polite"></section>
+        </section>
+      </aside>
+
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

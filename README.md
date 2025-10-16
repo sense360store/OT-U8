@@ -13,6 +13,7 @@ management.
 - 📝 Manage panel for creating, editing, or deleting training sessions.
 - 🎨 Light/dark mode, accent colour picker, and Material 3 styling.
 - 🚦 Toast notifications for key actions and status changes.
+- 📱 Mobile-first bottom sheet details view, list-calendar toggle, and safe-area aware layout.
 
 ## 1. Firebase setup
 
@@ -99,6 +100,16 @@ while running locally.
 - Non-allowlisted coaches can submit a request from the app. Review and approve
   them by copying the UID from `access_requests/{uid}` into `roles/{uid}` or
   adding their email to `allowlist/{email}`.
+
+### Mobile experience
+- On screens under 900px the calendar defaults to `listMonth` and automatically
+  toggles views when rotating or resizing.
+- Tapping an event opens a modal bottom sheet (80svh max height) that disables
+  background scroll, includes a drag handle, and respects device safe areas.
+- Session management cards collapse into stacked mobile cards with large touch
+  targets (44px+) and typography sized to avoid iOS zoom.
+- Header/footer padding and the bottom sheet all honour `env(safe-area-*)`
+  insets to keep content clear of notches and home indicators.
 
 With the configuration steps above a new maintainer can deploy, secure, and run
 training RSVPs in minutes.

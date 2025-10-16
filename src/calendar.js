@@ -34,7 +34,7 @@ function initCalendar({
   updateEvent,
   deleteEvent,
 } = {}) {
-  onEventSelected = onSelect;
+  onEventSelected(onSelect);
 
   if (typeof getCurrentUser === "function") {
     calendarActions.getCurrentUser = getCurrentUser;
@@ -79,8 +79,8 @@ function initCalendar({
       setActiveEvent(eventId);
       const stored = eventsCache.get(eventId);
       const rawEvent = stored || normalizeEvent({ id: eventId, ...info.event.extendedProps.rawEvent });
-      if (typeof onEventSelected === "function") {
-        onEventSelected(rawEvent);
+      if (typeof eventSelectedCallback === "function") {
+        eventSelectedCallback(rawEvent);
       }
       openEventDetailsDialog(rawEvent);
     },
@@ -669,6 +669,14 @@ function appendMetaRow(list, label, value) {
   const dd = document.createElement("dd");
   dd.textContent = value;
   list.append(dt, dd);
+}
+
+function onEventSelected(handler) {
+  eventSelectedCallback = typeof handler === "function" ? handler : null;
+}
+
+function onEventsChanged(handler) {
+  eventsChangedCallback = typeof handler === "function" ? handler : null;
 }
 
 window.App = window.App || {};

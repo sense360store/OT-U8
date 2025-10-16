@@ -1,4 +1,10 @@
-import {
+const authDeps = window.App?.deps?.firebase?.auth;
+
+if (!authDeps) {
+  throw new Error("Firebase Auth dependency is not available. Did bootstrap run?");
+}
+
+const {
   onAuthStateChanged,
   signInWithPopup,
   signInWithEmailAndPassword,
@@ -6,7 +12,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
   signOut,
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+} = authDeps;
 
 const { auth, googleProvider } = window.App.firebase;
 

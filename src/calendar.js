@@ -1,11 +1,19 @@
-import {
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+const firestoreDeps = window.App?.deps?.firebase?.firestore;
+const fullCalendarDeps = window.App?.deps?.FullCalendar;
+
+if (!firestoreDeps) {
+  throw new Error("Firestore dependency is not available. Ensure bootstrap ran first.");
+}
+
+if (!fullCalendarDeps || typeof fullCalendarDeps.Calendar !== "function") {
+  throw new Error("FullCalendar dependency is not available. Ensure bootstrap ran first.");
+}
+
+const { collection, onSnapshot, orderBy, query } = firestoreDeps;
+const { Calendar } = fullCalendarDeps;
 
 let calendarInstance;
+let calendarInitialised = false;
 let unsubscribeEvents;
 let eventSelectedCallback;
 let eventsChangedCallback;
@@ -36,6 +44,10 @@ function initCalendar({
 } = {}) {
   onEventSelected = onSelect;
 
+  if (calendarInitialised) {
+    return calendarInstance;
+  }
+
   if (typeof getCurrentUser === "function") {
     calendarActions.getCurrentUser = getCurrentUser;
   }
@@ -61,7 +73,7 @@ function initCalendar({
     throw new Error("Firestore is not available. Ensure Firebase is initialized.");
   }
 
-  calendarInstance = new FullCalendar.Calendar(calendarEl, {
+  calendarInstance = new Calendar(calendarEl, {
     initialView: currentView,
     height: "auto",
     selectable: true,
@@ -69,6 +81,10 @@ function initCalendar({
     displayEventTime: true,
     nowIndicator: true,
     dayMaxEventRows: true,
+    views: {
+      dayGridMonth: {},
+      listMonth: {},
+    },
     select(info) {
       calendarInstance.unselect();
       openCreateSessionDialog(info);
@@ -96,6 +112,11 @@ function initCalendar({
   });
 
   calendarInstance.render();
+  calendarInitialised = true;
+
+  console.info("FullCalendar initialised", {
+    views: ["dayGridMonth", "listMonth"],
+  });
 
   const monthButton = document.getElementById("view-month");
   const listButton = document.getElementById("view-list");
@@ -104,6 +125,7 @@ function initCalendar({
   listButton?.addEventListener("click", () => switchView("listMonth", listButton, monthButton));
 
   subscribeToEvents();
+  return calendarInstance;
 }
 
 function subscribeToEvents() {

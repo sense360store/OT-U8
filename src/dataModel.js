@@ -1,4 +1,10 @@
-import {
+const firestoreDeps = window.App?.deps?.firebase?.firestore;
+
+if (!firestoreDeps) {
+  throw new Error("Firestore dependency is not available. Did bootstrap run?");
+}
+
+const {
   collection,
   query,
   orderBy,
@@ -11,9 +17,8 @@ import {
   serverTimestamp,
   where,
   addDoc,
-  updateDoc,
-  deleteDoc,
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+  Timestamp,
+} = firestoreDeps;
 
 const { db } = window.App.firebase;
 

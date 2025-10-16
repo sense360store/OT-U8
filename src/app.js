@@ -109,6 +109,11 @@ function renderAppState() {
   });
 }
 
+function initRealtimeUi() {
+  syncSessionState();
+  renderAppState();
+}
+
 const initFooterYear = () => {
   const yearEl = document.getElementById("year");
   if (yearEl) {

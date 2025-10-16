@@ -39,10 +39,10 @@ service cloud.firestore {
     }
 
     function isAllowed() {
+      let email = normalizedEmail();
       return isSignedIn() && (
         exists(/databases/$(database)/documents/roles/$(request.auth.uid)) ||
-        (request.auth.token.email != null &&
-         exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email)))
+        (email != null && exists(/databases/$(database)/documents/allowlist/$(email)))
       );
     }
 

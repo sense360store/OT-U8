@@ -46,7 +46,7 @@ service cloud.firestore {
       );
     }
 
-    function validEventData() {
+    function validEvent() {
       return request.resource.data.keys().hasAll(['title', 'start', 'end', 'createdBy'])
         && request.resource.data.title is string
         && request.resource.data.start is timestamp
@@ -57,7 +57,11 @@ service cloud.firestore {
 
     match /events/{eventId} {
       allow read: if canAccessEventData();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAllowed() && validEvent();
+      allow update: if (isAdmin() || (isSignedIn() && resource.data.createdBy == request.auth.uid))
+        && validEvent()
+        && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
     match /rsvps/{rsvpId} {

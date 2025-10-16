@@ -1,3 +1,5 @@
+import { initCalendar } from "./calendar.js";
+
 const DEFAULT_TITLE = "Ossett U8s Training";
 const DEFAULT_LOCATION = "Ossett, ENG";
 const DEFAULT_DURATION_MINUTES = 60;
@@ -222,6 +224,16 @@ document.addEventListener("DOMContentLoaded", () => {
   initFooterYear();
   cacheFormElements();
   setDefaultFieldValues();
+
+  try {
+    initCalendar({
+      onSelect: (event) => {
+        window.App?.ui?.renderEventDetails?.(event);
+      },
+    });
+  } catch (error) {
+    console.error("Failed to initialise calendar", error);
+  }
 
   if (!form) {
     return;

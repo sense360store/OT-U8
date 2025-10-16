@@ -51,10 +51,23 @@ function listenToRsvps(eventId, callback) {
   const unsubscribe = onSnapshot(
     q,
     (snapshot) => {
-      const rsvps = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
+      const rsvps = snapshot.docs
+        .map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }))
+        .map((item) => ({
+          ...item,
+          coachName: item.coachName || "Coach",
+        }))
+        .sort((a, b) => {
+          const aName = a.coachName?.toLowerCase?.() || "";
+          const bName = b.coachName?.toLowerCase?.() || "";
+          if (aName === bName) {
+            return (a.uid || "").localeCompare(b.uid || "");
+          }
+          return aName.localeCompare(bName);
+        });
       callback(rsvps);
     },
     handleError
@@ -83,8 +96,31 @@ async function saveMyRsvp(eventId, user, status) {
     status,
     updatedAt: serverTimestamp(),
   };
-  await setDoc(doc(db, "rsvps", docId), payload, { merge: true });
-  return payload;
+  try {
+    await setDoc(doc(db, "rsvps", docId), payload, { merge: true });
+    window.App?.rsvp?.cacheUserStatus?.(eventId, user.uid, status);
+    return payload;
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
+}
+
+async function getMyRsvp(eventId, uid) {
+  if (!eventId || !uid) {
+    return null;
+  }
+  try {
+    const docRef = doc(db, "rsvps", `${eventId}_${uid}`);
+    const snapshot = await getDoc(docRef);
+    if (!snapshot.exists()) {
+      return null;
+    }
+    return { id: snapshot.id, ...snapshot.data() };
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
 }
 
 async function checkIfAdmin(uid) {
@@ -184,6 +220,7 @@ window.App.dataModel = {
   listenToEvents,
   listenToRsvps,
   saveMyRsvp,
+  getMyRsvp,
   checkIfAdmin,
   createEvent,
   listenToAccessRequests,
@@ -195,9 +232,7 @@ export {
   listenToEvents,
   listenToRsvps,
   saveMyRsvp,
+  getMyRsvp,
   checkIfAdmin,
   createEvent,
-  listenToAccessRequests,
-  addEmailToAllowlist,
-  deleteAccessRequest,
 };

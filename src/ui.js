@@ -12,6 +12,19 @@ function renderAuth({ user, isAdmin }) {
   if (!authContainer) return;
   authContainer.innerHTML = "";
 
+  const hasAccess = window.App?.access?.isAccessGranted?.() ?? false;
+
+  if (!user && !hasAccess) {
+    const gate = window.App.access.createGateElement({
+      onAccessGranted: () => {
+        renderAuth({ user, isAdmin });
+        showToast("Access granted. You can sign in now.", { tone: "success" });
+      },
+    });
+    authContainer.append(gate);
+    return;
+  }
+
   if (!user) {
     const googleButton = document.createElement("button");
     googleButton.className = "button";
@@ -159,11 +172,12 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
     return;
   }
 
-  const status = window.App.rsvp.getUserStatus(rsvps, user.uid);
+  const status = window.App.rsvp.getUserStatus(rsvps, user.uid, event.id);
 
   const form = document.createElement("form");
   form.className = "rsvp-form";
   form.setAttribute("aria-label", "RSVP form");
+  form.dataset.eventId = event.id;
 
   const legend = document.createElement("h3");
   legend.textContent = "Your RSVP";
@@ -185,6 +199,29 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
   });
 
   form.appendChild(optionsGroup);
+
+  const selectStatus = (value) => {
+    if (!value) return;
+    const target = form.querySelector(`input[name='rsvp'][value='${value}']`);
+    if (target) {
+      target.checked = true;
+    }
+  };
+
+  if (status) {
+    selectStatus(status);
+  }
+
+  if (user?.uid) {
+    window.App.rsvp
+      .loadUserStatus(event.id, user.uid)
+      .then((resolvedStatus) => {
+        if (!resolvedStatus) return;
+        if (form.dataset.eventId !== event.id) return;
+        selectStatus(resolvedStatus);
+      })
+      .catch(() => {});
+  }
 
   const submit = document.createElement("button");
   submit.type = "submit";
@@ -209,7 +246,15 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
 
     const heading = document.createElement("h3");
     const count = attendees.length;
-    heading.textContent = `${statusMeta?.icon || ""} ${statusMeta?.label || statusKey} (${count})`;
+
+    const headingLabel = document.createElement("span");
+    headingLabel.textContent = `${statusMeta?.icon || ""} ${statusMeta?.label || statusKey}`.trim();
+
+    const headingCount = document.createElement("span");
+    headingCount.textContent = count.toString();
+    headingCount.className = "status-count";
+
+    heading.append(headingLabel, headingCount);
     wrapper.appendChild(heading);
 
     if (!attendees.length) {
@@ -219,7 +264,18 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
       wrapper.appendChild(empty);
     } else {
       const list = document.createElement("ul");
-      attendees.forEach((attendee) => {
+      const sortedAttendees = attendees
+        .slice()
+        .sort((a, b) => {
+          const nameA = (a.coachName || a.uid || "").toLowerCase();
+          const nameB = (b.coachName || b.uid || "").toLowerCase();
+          if (nameA === nameB) {
+            return (a.uid || "").localeCompare(b.uid || "");
+          }
+          return nameA.localeCompare(nameB);
+        });
+
+      sortedAttendees.forEach((attendee) => {
         const item = document.createElement("li");
         const name = document.createElement("span");
         name.className = "attendee-name";

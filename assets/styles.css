@@ -357,6 +357,16 @@ main.layout {
   color: inherit;
 }
 
+.auth-area textarea {
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--border-color) 75%, transparent);
+  background: color-mix(in srgb, var(--card-bg) 96%, rgba(59, 130, 246, 0.05));
+  color: inherit;
+  resize: vertical;
+}
+
 .auth-area input:focus-visible {
   outline: none;
   border-color: color-mix(in srgb, var(--border-color) 40%, rgba(59, 130, 246, 0.65));

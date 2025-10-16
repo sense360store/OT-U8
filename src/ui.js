@@ -233,7 +233,15 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
 
     const heading = document.createElement("h3");
     const count = attendees.length;
-    heading.textContent = `${statusMeta?.icon || ""} ${statusMeta?.label || statusKey} (${count})`;
+
+    const headingLabel = document.createElement("span");
+    headingLabel.textContent = `${statusMeta?.icon || ""} ${statusMeta?.label || statusKey}`.trim();
+
+    const headingCount = document.createElement("span");
+    headingCount.textContent = count.toString();
+    headingCount.className = "status-count";
+
+    heading.append(headingLabel, headingCount);
     wrapper.appendChild(heading);
 
     if (!attendees.length) {
@@ -243,7 +251,18 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
       wrapper.appendChild(empty);
     } else {
       const list = document.createElement("ul");
-      attendees.forEach((attendee) => {
+      const sortedAttendees = attendees
+        .slice()
+        .sort((a, b) => {
+          const nameA = (a.coachName || a.uid || "").toLowerCase();
+          const nameB = (b.coachName || b.uid || "").toLowerCase();
+          if (nameA === nameB) {
+            return (a.uid || "").localeCompare(b.uid || "");
+          }
+          return nameA.localeCompare(nameB);
+        });
+
+      sortedAttendees.forEach((attendee) => {
         const item = document.createElement("li");
         const name = document.createElement("span");
         name.className = "attendee-name";

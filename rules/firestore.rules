@@ -11,23 +11,54 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == "admin";
     }
 
+    function isAllowed() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/roles/$(request.auth.uid)) ||
+        (request.auth.token.email != null &&
+         exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email)))
+      );
+    }
+
+    function validEventData() {
+      return request.resource.data.keys().hasAll(['title', 'start', 'end', 'createdBy'])
+        && request.resource.data.title is string
+        && request.resource.data.start is timestamp
+        && request.resource.data.end is timestamp
+        && request.resource.data.end > request.resource.data.start
+        && request.resource.data.createdBy is string;
+    }
+
     match /events/{eventId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isAllowed();
+      allow create: if isAllowed()
+        && validEventData()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAllowed()
+        && validEventData()
+        && request.resource.data.createdBy == resource.data.createdBy
+        && (isAdmin() || resource.data.createdBy == request.auth.uid);
+      allow delete: if isAllowed() && (isAdmin() || resource.data.createdBy == request.auth.uid);
     }
 
     match /rsvps/{rsvpId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
+      allow read: if isAllowed();
+      allow create, update: if isAllowed()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.eventId + "_" + request.auth.uid == request.resource.data.rsvpId
-        && request.resource.data.rsvpId == rsvpId;
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+        && (request.resource.data.eventId + "_" + request.auth.uid == rsvpId);
+      allow delete: if isAdmin() || (isAllowed() && resource.data.uid == request.auth.uid);
     }
 
     match /roles/{uid} {
-      allow read: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /allowlist/{email} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /access_requests/{uid} {
+      allow create: if isSignedIn() && uid == request.auth.uid;
+      allow read, update, delete: if isAdmin();
     }
   }
 }

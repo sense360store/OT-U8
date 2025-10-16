@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ossett U8s Training RSVP</title>
   <link rel="stylesheet" href="assets/styles.css">
+  <script>
+    window.__FIREBASE_CONFIG = window.__FIREBASE_CONFIG || {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      appId: "YOUR_APP_ID"
+    };
+  </script>
 </head>
 <body>
   <header class="site-header">
@@ -19,19 +27,33 @@
         <h1>Coach RSVP Tracker</h1>
         <p class="tagline">Plan every session with confidence</p>
       </div>
-      <nav aria-label="Site navigation">
-        <ul class="nav-links">
-          <li><a href="#">Home</a></li>
-          <li><a href="#">Schedule</a></li>
-          <li><a href="#">Contact</a></li>
-        </ul>
-      </nav>
     </div>
+    <nav aria-label="Site navigation">
+      <ul class="nav-links">
+        <li><a href="#">Home</a></li>
+        <li><a href="#">Schedule</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </nav>
+    <div id="auth-area" class="auth-area" aria-live="polite"></div>
   </header>
 
   <main class="site-main" id="main-content">
-    <div class="container">
-      <!-- Future content will live here. -->
+    <div class="container layout">
+      <section class="manage-panel" id="manage-view" aria-labelledby="manage-heading">
+        <div class="manage-header">
+          <div>
+            <h2 id="manage-heading">Manage events</h2>
+            <p class="manage-subtitle">Review, edit, and curate the Ossett U8s training schedule.</p>
+          </div>
+          <div class="segmented-control" role="group" aria-label="Filter events">
+            <button type="button" class="segmented-control__button" data-filter="all" aria-pressed="true">All events</button>
+            <button type="button" class="segmented-control__button" data-filter="mine" aria-pressed="false">My events</button>
+          </div>
+        </div>
+        <p class="manage-note" data-manage-note></p>
+        <div class="manage-events" data-manage-events></div>
+      </section>
     </div>
   </main>
 
@@ -41,6 +63,9 @@
     </div>
   </footer>
 
+  <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+
   <script src="src/app.js" type="module"></script>
+  <script src="src/main.js" type="module"></script>
 </body>
 </html>

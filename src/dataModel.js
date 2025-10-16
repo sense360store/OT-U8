@@ -48,10 +48,23 @@ function listenToRsvps(eventId, callback) {
   const unsubscribe = onSnapshot(
     q,
     (snapshot) => {
-      const rsvps = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
+      const rsvps = snapshot.docs
+        .map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }))
+        .map((item) => ({
+          ...item,
+          coachName: item.coachName || "Coach",
+        }))
+        .sort((a, b) => {
+          const aName = a.coachName?.toLowerCase?.() || "";
+          const bName = b.coachName?.toLowerCase?.() || "";
+          if (aName === bName) {
+            return (a.uid || "").localeCompare(b.uid || "");
+          }
+          return aName.localeCompare(bName);
+        });
       callback(rsvps);
     },
     handleError

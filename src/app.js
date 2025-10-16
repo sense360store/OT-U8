@@ -1,3 +1,5 @@
+import "./access.js";
+
 const state = {
   events: [],
   user: null,
@@ -8,6 +10,7 @@ const state = {
   unsubscribeRsvps: null,
   unsubscribeEvents: null,
   isLoadingRsvps: false,
+  access: null,
 };
 
 function bootstrap() {
@@ -18,14 +21,16 @@ function bootstrap() {
     onResetPassword: handlePasswordReset,
     onSignOut: handleSignOut,
     onRsvpSubmit: handleRsvpSubmit,
+    onRequestAccess: handleRequestAccess,
   });
 
   window.App.calendar.initCalendar({ onSelect: handleEventSelected });
 
   window.App.auth.listenToAuth(async (user) => {
     state.user = user;
-    state.isAdmin = user ? await window.App.dataModel.checkIfAdmin(user.uid) : false;
     if (!user) {
+      state.isAdmin = false;
+      state.access = null;
       clearRsvpSubscription();
       clearEventsSubscription();
       state.events = [];
@@ -35,12 +40,28 @@ function bootstrap() {
       window.App.calendar.setActiveEvent(null);
       state.rsvps = [];
       state.isLoadingRsvps = false;
-    } else if (state.selectedEventId) {
-      subscribeToRsvps(state.selectedEventId);
-      subscribeToEvents();
-    } else if (user) {
-      subscribeToEvents();
+      window.App.ui.renderAuth({ user, isAdmin: state.isAdmin });
+      renderDetails();
+      return;
     }
+
+    const [isAdmin, access] = await Promise.all([
+      window.App.dataModel.checkIfAdmin(user.uid),
+      window.App.access.evaluateAccess(user),
+    ]);
+
+    state.isAdmin = isAdmin;
+    state.access = access;
+
+    if (state.selectedEventId && state.access?.allowed !== false) {
+      subscribeToRsvps(state.selectedEventId);
+    } else if (state.access?.allowed === false) {
+      clearRsvpSubscription();
+      state.rsvps = [];
+      state.isLoadingRsvps = false;
+    }
+
+    subscribeToEvents();
     window.App.ui.renderAuth({ user, isAdmin: state.isAdmin });
     renderDetails();
   });
@@ -50,7 +71,7 @@ function handleEventSelected(event) {
   state.selectedEventId = event.id;
   state.selectedEvent = normalizeEvent(event);
   window.App.calendar.setActiveEvent(event.id);
-  if (state.user) {
+  if (state.user && state.access?.allowed !== false) {
     subscribeToRsvps(event.id);
   } else {
     clearRsvpSubscription();
@@ -158,6 +179,10 @@ function handleRsvpSubmit(status) {
     window.App.ui.showToast("Sign in to RSVP", { tone: "error" });
     return;
   }
+  if (state.access?.allowed === false) {
+    window.App.ui.showToast("Request access before responding", { tone: "error" });
+    return;
+  }
   if (!state.selectedEventId) {
     window.App.ui.showToast("Choose an event first", { tone: "error" });
     return;
@@ -168,6 +193,30 @@ function handleRsvpSubmit(status) {
     .catch(() => {});
 }
 
+function handleRequestAccess(notes) {
+  if (!state.user) {
+    window.App.ui.showToast("Sign in to request access", { tone: "error" });
+    return Promise.reject(new Error("User must be signed in"));
+  }
+
+  return window.App.access
+    .requestAccess(state.user, notes)
+    .then(() => {
+      window.App.ui.showToast("Access request sent", { tone: "success" });
+      state.access = {
+        ...(state.access || { allowed: false, role: null }),
+        requested: true,
+      };
+      renderDetails();
+    })
+    .catch((error) => {
+      console.error(error);
+      const message = error?.message || "Failed to submit access request";
+      window.App.ui.showToast(message, { tone: "error" });
+      throw error;
+    });
+}
+
 function renderDetails() {
   window.App.ui.renderEventDetails({
     event: state.selectedEvent,
@@ -175,6 +224,7 @@ function renderDetails() {
     user: state.user,
     isAdmin: state.isAdmin,
     isLoadingRsvps: state.isLoadingRsvps,
+    access: state.access,
   });
 }
 

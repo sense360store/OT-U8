@@ -108,7 +108,7 @@ function renderAuth({ user, isAdmin }) {
   }
 }
 
-function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }) {
+function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps, access = null }) {
   if (!detailsContainer) return;
   detailsContainer.innerHTML = "";
 
@@ -156,6 +156,58 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
     alert.className = "alert alert-info";
     alert.textContent = "Sign in to RSVP and view attendee responses.";
     detailsContainer.append(alert);
+    return;
+  }
+
+  if (access?.allowed === false) {
+    const panel = document.createElement("section");
+    panel.className = "rsvp-form access-panel";
+
+    const heading = document.createElement("h3");
+    heading.textContent = "Access required";
+    panel.appendChild(heading);
+
+    const message = document.createElement("p");
+    message.className = "placeholder";
+    message.textContent = access.requested
+      ? "Your access request is pending. An admin will review it soon."
+      : "You need access approval before viewing RSVPs. Request access below.";
+    panel.appendChild(message);
+
+    if (!access.requested) {
+      const form = document.createElement("form");
+      form.className = "rsvp-form";
+      form.setAttribute("aria-label", "Request access form");
+
+      const notesField = document.createElement("textarea");
+      notesField.name = "notes";
+      notesField.rows = 3;
+      notesField.placeholder = "Add a note (optional)";
+      form.appendChild(notesField);
+
+      const submit = document.createElement("button");
+      submit.type = "submit";
+      submit.className = "button";
+      submit.textContent = "Request access";
+      form.appendChild(submit);
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (typeof uiHandlers.onRequestAccess !== "function") {
+          return;
+        }
+        submit.disabled = true;
+        try {
+          await uiHandlers.onRequestAccess(notesField.value.trim());
+        } catch (error) {
+          submit.disabled = false;
+        }
+      });
+
+      panel.appendChild(form);
+    }
+
+    detailsContainer.append(panel);
     return;
   }
 

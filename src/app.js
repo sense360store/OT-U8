@@ -34,12 +34,9 @@ let endInput;
 let locationInput;
 let notesInput;
 let errorSummary;
-let toastEl;
 let summaryContainer;
 let summaryList;
 let summaryPlaceholder;
-let toastHideTimer;
-let toastDelayTimer;
 
 const MINUTE_IN_MS = 60 * 1000;
 
@@ -129,7 +126,6 @@ function cacheFormElements() {
   locationInput = form.querySelector("#location");
   notesInput = form.querySelector("#notes");
   errorSummary = document.getElementById("form-errors");
-  toastEl = document.getElementById("toast");
   summaryContainer = document.getElementById("event-summary");
   summaryList = summaryContainer?.querySelector(".summary-list") ?? null;
   summaryPlaceholder = summaryContainer?.querySelector(".placeholder") ?? null;
@@ -182,35 +178,6 @@ function showErrors(messages = []) {
   });
   errorSummary.appendChild(list);
   errorSummary.hidden = false;
-}
-
-function hideToast() {
-  if (!toastEl) return;
-  toastEl.classList.remove("toast-visible");
-  if (toastHideTimer) {
-    window.clearTimeout(toastHideTimer);
-  }
-  toastHideTimer = window.setTimeout(() => {
-    toastEl.hidden = true;
-  }, 220);
-}
-
-function showToast(message, tone = "success") {
-  if (!toastEl) return;
-  if (toastDelayTimer) {
-    window.clearTimeout(toastDelayTimer);
-  }
-  if (toastHideTimer) {
-    window.clearTimeout(toastHideTimer);
-  }
-  toastEl.textContent = message;
-  toastEl.className = tone === "error" ? "toast toast--error" : "toast";
-  toastEl.hidden = false;
-  // Ensure the class change happens in a new frame for transition support.
-  requestAnimationFrame(() => {
-    toastEl.classList.add("toast-visible");
-  });
-  toastDelayTimer = window.setTimeout(hideToast, 4000);
 }
 
 function updateSummary(payload) {
@@ -307,7 +274,7 @@ function handleSubmit(event) {
 
   showErrors([]);
   updateSummary(payload);
-  showToast("Training session saved");
+  uiShowToast("Training session saved", { tone: "success" });
   // eslint-disable-next-line no-console
   console.info("Normalised session payload", payload);
 }
@@ -478,6 +445,17 @@ document.addEventListener("DOMContentLoaded", () => {
   initFooterYear();
   cacheFormElements();
   setDefaultFieldValues();
+  initRealtimeUi();
+
+  try {
+    initCalendar({
+      onSelect: (event) => {
+        window.App?.ui?.renderEventDetails?.(event);
+      },
+    });
+  } catch (error) {
+    console.error("Failed to initialise calendar", error);
+  }
 
   initRealtimeFeatures();
 

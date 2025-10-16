@@ -39,10 +39,10 @@ service cloud.firestore {
     }
 
     function isAllowed() {
+      let email = normalizedEmail();
       return isSignedIn() && (
         exists(/databases/$(database)/documents/roles/$(request.auth.uid)) ||
-        (request.auth.token.email != null &&
-         exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email)))
+        (email != null && exists(/databases/$(database)/documents/allowlist/$(email)))
       );
     }
 
@@ -62,11 +62,11 @@ service cloud.firestore {
 
     match /rsvps/{rsvpId} {
       allow read: if canAccessEventData();
-      allow create, update: if canAccessEventData()
+      allow create, update: if isAllowed()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.eventId + "_" + request.auth.uid == request.resource.data.rsvpId
         && request.resource.data.rsvpId == rsvpId;
-      allow delete: if isAdmin() || (canAccessEventData() && resource.data.uid == request.auth.uid && resource.data.rsvpId == rsvpId);
+      allow delete: if isAdmin() || (isAllowed() && resource.data.uid == request.auth.uid && resource.data.rsvpId == rsvpId);
     }
 
     match /roles/{uid} {
@@ -77,6 +77,11 @@ service cloud.firestore {
     match /allowlist/{email} {
       allow read: if isAdmin() || (isSignedIn() && normalizedEmail() == email);
       allow create, update, delete: if isAdmin();
+    }
+
+    match /access_requests/{uid} {
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow read, update, delete: if isAdmin();
     }
   }
 }

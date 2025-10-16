@@ -6,6 +6,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
   where,
   addDoc,
@@ -144,75 +146,51 @@ async function createEvent(data) {
     location: data.location || "",
     notes: data.notes || "",
     createdBy: data.createdBy,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   };
   return addDoc(collectionRefs.events, payload);
 }
 
-function listenToAccessRequests(callback) {
-  const q = query(collectionRefs.accessRequests);
-  const unsubscribe = onSnapshot(
-    q,
-    (snapshot) => {
-      const requests = snapshot.docs
-        .map((docSnap) => {
-          const data = docSnap.data() || {};
-          const requestedAt = getTimestampValue(data);
-          return {
-            id: docSnap.id,
-            ...data,
-            requestedAt,
-          };
-        })
-        .sort((a, b) => {
-          const aTime = a.requestedAt?.getTime?.() || 0;
-          const bTime = b.requestedAt?.getTime?.() || 0;
-          return bTime - aTime;
-        });
-      callback(requests);
-    },
-    handleError
-  );
-  return unsubscribe;
-}
-
-async function addEmailToAllowlist(email, metadata = {}) {
-  if (!email) {
-    throw new Error("Email is required");
+async function updateEvent(eventId, data) {
+  if (!eventId) {
+    throw new Error("Missing event ID");
   }
-  const normalizedEmail = email.trim().toLowerCase();
+  const docRef = doc(collectionRefs.events, eventId);
   const payload = {
-    email: normalizedEmail,
-    addedAt: serverTimestamp(),
-    ...metadata,
+    ...(data.title !== undefined ? { title: data.title } : {}),
+    ...(data.start !== undefined ? { start: data.start } : {}),
+    ...(data.end !== undefined ? { end: data.end } : {}),
+    ...(data.location !== undefined ? { location: data.location } : {}),
+    ...(data.notes !== undefined ? { notes: data.notes } : {}),
+    updatedAt: serverTimestamp(),
   };
-  await setDoc(doc(collectionRefs.allowlist, normalizedEmail), payload, { merge: true });
-  return payload;
+  return updateDoc(docRef, payload);
 }
 
-function deleteAccessRequest(requestId) {
-  if (!requestId) {
-    return Promise.resolve();
+async function deleteEvent(eventId) {
+  if (!eventId) {
+    throw new Error("Missing event ID");
   }
-  return deleteDoc(doc(collectionRefs.accessRequests, requestId));
+  const docRef = doc(collectionRefs.events, eventId);
+  return deleteDoc(docRef);
 }
 
-function getTimestampValue(data) {
-  const candidates = [
-    data?.createdAt,
-    data?.requestedAt,
-    data?.timestamp,
-    data?.submittedAt,
-  ];
-  for (const value of candidates) {
-    if (!value) continue;
-    if (typeof value.toDate === "function") {
-      return value.toDate();
-    }
-    if (value instanceof Date) {
-      return value;
-    }
+async function getUserRole(uid) {
+  if (!uid) {
+    return null;
   }
-  return null;
+  try {
+    const roleDoc = await getDoc(doc(collectionRefs.roles, uid));
+    if (!roleDoc.exists()) {
+      return null;
+    }
+    const payload = roleDoc.data() || {};
+    return { id: roleDoc.id, ...payload };
+  } catch (error) {
+    console.warn("Unable to load user role", error);
+    return null;
+  }
 }
 
 window.App = window.App || {};
@@ -223,9 +201,9 @@ window.App.dataModel = {
   getMyRsvp,
   checkIfAdmin,
   createEvent,
-  listenToAccessRequests,
-  addEmailToAllowlist,
-  deleteAccessRequest,
+  updateEvent,
+  deleteEvent,
+  getUserRole,
 };
 
 export {
@@ -235,4 +213,7 @@ export {
   getMyRsvp,
   checkIfAdmin,
   createEvent,
+  updateEvent,
+  deleteEvent,
+  getUserRole,
 };

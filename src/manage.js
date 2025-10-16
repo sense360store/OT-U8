@@ -1,585 +1,416 @@
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-import { auth } from "./firebase.js";
-import {
-  listenToEvents,
-  createEvent,
-  updateEvent as updateEventRecord,
-  deleteEvent as deleteEventRecord,
-  getUserRole,
-} from "./dataModel.js";
-import { showToast } from "./ui.js";
+const manageRoot = document.getElementById("manage-view");
+const eventsContainer = manageRoot?.querySelector("[data-manage-events]");
+const noteEl = manageRoot?.querySelector("[data-manage-note]");
+const filterButtons = manageRoot?.querySelectorAll("[data-filter]");
 
-const manageSection = document.getElementById("manage");
-const manageNav = document.getElementById("manage-nav");
+let handlers = {};
+let editingEventId = null;
+let lastRenderState = null;
+let inputIdCounter = 0;
 
-if (!manageSection || !manageNav) {
-  console.warn("Manage panel elements are missing from the page.");
-} else {
-  const ALLOWED_ROLES = new Set(["admin", "coach"]);
-
-  let currentUser = null;
-  let currentRole = null;
-  let isAdmin = false;
-  let isAllowed = false;
-  let isCheckingAccess = true;
-  let isLoadingEvents = false;
-  let events = [];
-  let unsubscribeFromEvents = null;
-  let editingEventId = null;
-
-  const placeholder = manageSection.querySelector(".placeholder");
-  placeholder?.remove();
-
-  const stateMessage = document.createElement("div");
-  stateMessage.id = "manage-state";
-  stateMessage.className = "alert alert-info manage-feedback";
-  stateMessage.hidden = true;
-  stateMessage.setAttribute("role", "status");
-
-  const form = document.createElement("form");
-  form.className = "manage-form";
-  form.id = "manage-form";
-  form.autocomplete = "off";
-  form.innerHTML = `
-    <div class="form-heading">
-      <h3 id="session-form-heading" class="session-name">Create a session</h3>
-      <p id="manage-form-hint" class="session-meta">Title defaults to \"Ossett U8s Training\". Location and notes are optional.</p>
-    </div>
-    <div class="form-grid">
-      <label for="session-title">Title
-        <input id="session-title" name="title" type="text" required value="Ossett U8s Training" autocomplete="off" maxlength="120">
-      </label>
-      <label for="session-date">Date
-        <input id="session-date" name="date" type="date" required>
-      </label>
-      <label for="session-start">Start time
-        <input id="session-start" name="start" type="time" required>
-      </label>
-      <label for="session-end">End time
-        <input id="session-end" name="end" type="time" required>
-      </label>
-      <label for="session-location">Location
-        <input id="session-location" name="location" type="text" placeholder="Optional" maxlength="120">
-      </label>
-      <label for="session-notes" class="notes-field">Notes
-        <textarea id="session-notes" name="notes" placeholder="Optional details" maxlength="500"></textarea>
-      </label>
-    </div>
-    <div class="form-actions">
-      <button type="submit" class="button" id="session-submit">Save session</button>
-      <button type="button" class="button button-secondary" id="session-cancel" hidden>Cancel edit</button>
-    </div>
-  `;
-
-  const listSection = document.createElement("section");
-  listSection.className = "manage-table-section";
-  listSection.innerHTML = `
-    <header>
-      <h3 class="session-name">Upcoming sessions</h3>
-      <p class="session-meta">Edit or share upcoming training dates.</p>
-    </header>
-    <p class="placeholder" id="manage-empty" hidden>No upcoming sessions scheduled yet.</p>
-    <div class="manage-table-wrapper">
-      <table class="table" aria-describedby="manage-empty">
-        <thead>
-          <tr>
-            <th scope="col">Session</th>
-            <th scope="col">Date</th>
-            <th scope="col">Time</th>
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  `;
-
-  manageSection.append(stateMessage, form, listSection);
-
-  const titleInput = form.querySelector("#session-title");
-  const dateInput = form.querySelector("#session-date");
-  const startInput = form.querySelector("#session-start");
-  const endInput = form.querySelector("#session-end");
-  const locationInput = form.querySelector("#session-location");
-  const notesInput = form.querySelector("#session-notes");
-  const submitButton = form.querySelector("#session-submit");
-  const cancelButton = form.querySelector("#session-cancel");
-  const formHeading = form.querySelector("#session-form-heading");
-  const tableBody = listSection.querySelector("tbody");
-  const emptyMessage = listSection.querySelector("#manage-empty");
-
-  const dateFormatter = new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  const timeFormatter = new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  function toDate(value) {
-    if (!value) return null;
-    if (value instanceof Date) {
-      return new Date(value.getTime());
-    }
-    if (typeof value.toDate === "function") {
-      return value.toDate();
-    }
-    if (typeof value === "number") {
-      return new Date(value);
-    }
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-
-  function normalizeEvent(raw = {}) {
-    const startDate = toDate(raw.start);
-    const endDate = toDate(raw.end);
-    return {
-      ...raw,
-      startDate,
-      endDate,
-    };
-  }
-
-  function formatDateLabel(date) {
-    return date ? dateFormatter.format(date) : "TBC";
-  }
-
-  function formatTimeRange(startDate, endDate) {
-    if (!startDate && !endDate) {
-      return "TBC";
-    }
-    if (startDate && endDate) {
-      if (startDate.toDateString() === endDate.toDateString()) {
-        return `${timeFormatter.format(startDate)} – ${timeFormatter.format(endDate)}`;
+function initManage(providedHandlers = {}) {
+  handlers = providedHandlers;
+  filterButtons?.forEach((button) => {
+    button.addEventListener("click", () => {
+      const filter = button.dataset.filter;
+      if (!filter || filter === lastRenderState?.filter) {
+        return;
       }
-      return `${timeFormatter.format(startDate)} – ${dateFormatter.format(endDate)} ${timeFormatter.format(endDate)}`;
-    }
-    const single = startDate || endDate;
-    return timeFormatter.format(single);
-  }
-
-  function formatInputDate(date) {
-    if (!date) return "";
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, "0");
-    const day = `${date.getDate()}`.padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-
-  function formatInputTime(date) {
-    if (!date) return "";
-    const hours = `${date.getHours()}`.padStart(2, "0");
-    const minutes = `${date.getMinutes()}`.padStart(2, "0");
-    return `${hours}:${minutes}`;
-  }
-
-  function combineDateAndTime(dateValue, timeValue) {
-    if (!dateValue || !timeValue) return null;
-    const combined = new Date(`${dateValue}T${timeValue}`);
-    if (Number.isNaN(combined.getTime())) {
-      return null;
-    }
-    return combined;
-  }
-
-  function setStateMessage(message, tone = "info") {
-    if (!message) {
-      stateMessage.hidden = true;
-      stateMessage.textContent = "";
-      return;
-    }
-    stateMessage.textContent = message;
-    stateMessage.hidden = false;
-    stateMessage.className = `alert manage-feedback ${tone === "error" ? "alert-error" : "alert-info"}`.trim();
-    stateMessage.setAttribute("role", tone === "error" ? "alert" : "status");
-  }
-
-  function resetForm() {
-    editingEventId = null;
-    formHeading.textContent = "Create a session";
-    submitButton.textContent = "Save session";
-    cancelButton.hidden = true;
-    form.reset();
-    titleInput.value = "Ossett U8s Training";
-  }
-
-  function setLoading(loading) {
-    submitButton.disabled = loading;
-  }
-
-  function notify(message, tone = "info") {
-    if (typeof showToast === "function") {
-      showToast(message, { tone });
-    } else if (window.App?.ui?.showToast) {
-      window.App.ui.showToast(message, { tone });
-    } else {
-      console.info(message);
-    }
-  }
-
-  function renderEventsTable() {
-    if (!tableBody || !emptyMessage) {
-      return;
-    }
-
-    tableBody.innerHTML = "";
-
-    if (!isAllowed) {
-      emptyMessage.hidden = true;
-      return;
-    }
-
-    if (isLoadingEvents) {
-      emptyMessage.hidden = false;
-      emptyMessage.textContent = "Loading upcoming sessions…";
-      return;
-    }
-
-    const now = Date.now();
-    const upcoming = events
-      .filter((event) => {
-        const reference = event.endDate || event.startDate;
-        if (!reference) return false;
-        return reference.getTime() >= now;
-      })
-      .sort((a, b) => {
-        const aTime = a.startDate?.getTime?.() || 0;
-        const bTime = b.startDate?.getTime?.() || 0;
-        return aTime - bTime;
-      });
-
-    if (!upcoming.length) {
-      emptyMessage.hidden = false;
-      emptyMessage.textContent = "No upcoming sessions scheduled yet.";
-      return;
-    }
-
-    emptyMessage.hidden = true;
-
-    upcoming.forEach((event) => {
-      const row = document.createElement("tr");
-
-      const titleCell = document.createElement("td");
-      const titleLabel = document.createElement("span");
-      titleLabel.className = "session-name";
-      titleLabel.textContent = event.title || "Ossett U8s Training";
-      titleCell.appendChild(titleLabel);
-
-      if (event.location) {
-        const locationMeta = document.createElement("div");
-        locationMeta.className = "session-meta";
-        locationMeta.textContent = event.location;
-        titleCell.appendChild(locationMeta);
-      }
-
-      if (event.notes) {
-        const notesMeta = document.createElement("div");
-        notesMeta.className = "session-meta";
-        notesMeta.textContent = event.notes;
-        titleCell.appendChild(notesMeta);
-      }
-
-      const dateCell = document.createElement("td");
-      dateCell.textContent = formatDateLabel(event.startDate || event.endDate);
-
-      const timeCell = document.createElement("td");
-      timeCell.textContent = formatTimeRange(event.startDate, event.endDate);
-
-      const actionsCell = document.createElement("td");
-      const actionsGroup = document.createElement("div");
-      actionsGroup.className = "action-group";
-
-      const canEdit = isAdmin || (!!currentUser && event.createdBy === currentUser.uid);
-
-      const editButton = document.createElement("button");
-      editButton.type = "button";
-      editButton.className = "button button-secondary";
-      editButton.textContent = "Edit";
-      editButton.disabled = !canEdit;
-      if (!canEdit) {
-        editButton.title = "Only admins or the session owner can edit.";
-      }
-      editButton.addEventListener("click", () => {
-        if (!canEdit) return;
-        startEditing(event);
-      });
-
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.className = "button button-danger";
-      deleteButton.textContent = "Delete";
-      deleteButton.disabled = !canEdit;
-      if (!canEdit) {
-        deleteButton.title = "Only admins or the session owner can delete.";
-      }
-      deleteButton.addEventListener("click", () => {
-        if (!canEdit) return;
-        confirmDelete(event);
-      });
-
-      const copyButton = document.createElement("button");
-      copyButton.type = "button";
-      copyButton.className = "button button-secondary";
-      copyButton.textContent = "Copy link";
-      copyButton.addEventListener("click", () => copyLink(event));
-
-      actionsGroup.append(editButton, deleteButton, copyButton);
-      actionsCell.appendChild(actionsGroup);
-
-      row.append(titleCell, dateCell, timeCell, actionsCell);
-      tableBody.appendChild(row);
+      handlers.onFilterChange?.(filter);
     });
-  }
-
-  function copyLink(event) {
-    const reference = event.startDate || event.endDate;
-    if (!reference) {
-      notify("Unable to copy a link without a scheduled date", "error");
-      return;
-    }
-    const dateSlug = formatInputDate(reference);
-    const url = new URL(window.location.href);
-    url.hash = `calendar:${dateSlug}`;
-    const text = url.toString();
-
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          notify("Session link copied to clipboard", "info");
-        })
-        .catch(() => {
-          const fallback = window.prompt("Copy this link", text);
-          if (fallback !== null) {
-            notify("Session link ready to share", "info");
-          }
-        });
-    } else {
-      const fallback = window.prompt("Copy this link", text);
-      if (fallback !== null) {
-        notify("Session link ready to share", "info");
-      }
-    }
-  }
-
-  function startEditing(event) {
-    editingEventId = event.id;
-    formHeading.textContent = "Edit session";
-    submitButton.textContent = "Update session";
-    cancelButton.hidden = false;
-    titleInput.value = event.title || "Ossett U8s Training";
-    const referenceDate = event.startDate || event.endDate;
-    if (referenceDate) {
-      dateInput.value = formatInputDate(referenceDate);
-    }
-    if (event.startDate) {
-      startInput.value = formatInputTime(event.startDate);
-    }
-    if (event.endDate) {
-      endInput.value = formatInputTime(event.endDate);
-    }
-    locationInput.value = event.location || "";
-    notesInput.value = event.notes || "";
-    window.requestAnimationFrame(() => {
-      form.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
-
-  function confirmDelete(event) {
-    const dateLabel = formatDateLabel(event.startDate || event.endDate);
-    const confirmed = window.confirm(`Delete \"${event.title || "Ossett U8s Training"}\" on ${dateLabel}? This action cannot be undone.`);
-    if (!confirmed) {
-      return;
-    }
-    deleteEvent(event.id);
-  }
-
-  async function deleteEvent(eventId) {
-    if (!eventId) return;
-    try {
-      await deleteEventRecord(eventId);
-      notify("Session deleted", "info");
-    } catch (error) {
-      console.error(error);
-      notify("Failed to delete session", "error");
-    }
-  }
-
-  function renderView() {
-    const isActive = window.location.hash === "#manage";
-    manageSection.hidden = !isActive;
-
-    if (isActive) {
-      manageNav.setAttribute("aria-current", "page");
-    } else {
-      manageNav.removeAttribute("aria-current");
-    }
-
-    if (!isActive) {
-      return;
-    }
-
-    if (isCheckingAccess) {
-      setStateMessage("Checking access…", "info");
-      form.hidden = true;
-      listSection.hidden = true;
-      return;
-    }
-
-    if (!currentUser) {
-      setStateMessage("Sign in to manage training sessions.", "error");
-      form.hidden = true;
-      listSection.hidden = true;
-      return;
-    }
-
-    if (!isAllowed) {
-      setStateMessage("Access required. Ask an admin to enable manage permissions.", "error");
-      form.hidden = true;
-      listSection.hidden = true;
-      return;
-    }
-
-    const name = currentUser.displayName || currentUser.email || "coach";
-    const roleLabel = currentRole?.role || (isAdmin ? "admin" : "coach");
-    setStateMessage(`Signed in as ${name}. You have ${roleLabel} access.`, "info");
-    form.hidden = false;
-    listSection.hidden = false;
-    renderEventsTable();
-  }
-
-  function startEventsListener() {
-    if (unsubscribeFromEvents) {
-      return;
-    }
-    isLoadingEvents = true;
-    renderEventsTable();
-    unsubscribeFromEvents = listenToEvents((records) => {
-      isLoadingEvents = false;
-      events = records.map(normalizeEvent);
-      renderEventsTable();
-    });
-  }
-
-  function stopEventsListener() {
-    if (unsubscribeFromEvents) {
-      unsubscribeFromEvents();
-      unsubscribeFromEvents = null;
-    }
-    events = [];
-    isLoadingEvents = false;
-    renderEventsTable();
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    if (!isAllowed || !currentUser) {
-      notify("You do not have permission to manage sessions.", "error");
-      return;
-    }
-
-    const title = titleInput.value.trim() || "Ossett U8s Training";
-    const dateValue = dateInput.value;
-    const startValue = startInput.value;
-    const endValue = endInput.value;
-    const location = locationInput.value.trim();
-    const notes = notesInput.value.trim();
-
-    const startDate = combineDateAndTime(dateValue, startValue);
-    const endDate = combineDateAndTime(dateValue, endValue);
-
-    if (!startDate || !endDate) {
-      notify("Enter a valid date and time range.", "error");
-      return;
-    }
-
-    if (endDate <= startDate) {
-      notify("End time must be after the start time.", "error");
-      return;
-    }
-
-    const payload = {
-      title,
-      start: startDate,
-      end: endDate,
-      location,
-      notes,
-    };
-
-    setLoading(true);
-
-    try {
-      if (editingEventId) {
-        await updateEventRecord(editingEventId, payload);
-        notify("Session updated", "info");
-      } else {
-        await createEvent({ ...payload, createdBy: currentUser.uid });
-        notify("Session created", "info");
-      }
-      resetForm();
-    } catch (error) {
-      console.error(error);
-      notify("Unable to save the session", "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  cancelButton.addEventListener("click", () => {
-    resetForm();
   });
-
-  form.addEventListener("submit", handleSubmit);
-
-  function handleNavClick(event) {
-    if (window.location.hash === "#manage") {
-      event.preventDefault();
-      history.pushState("", document.title, window.location.pathname + window.location.search);
-      renderView();
-    }
-  }
-
-  manageNav.addEventListener("click", handleNavClick);
-  window.addEventListener("hashchange", renderView);
-
-  onAuthStateChanged(auth, async (user) => {
-    currentUser = user;
-    editingEventId = null;
-    resetForm();
-
-    if (!user) {
-      currentRole = null;
-      isAdmin = false;
-      isAllowed = false;
-      isCheckingAccess = false;
-      stopEventsListener();
-      renderView();
-      return;
-    }
-
-    isCheckingAccess = true;
-    renderView();
-
-    const role = await getUserRole(user.uid);
-    currentRole = role;
-    const roleName = role?.role || null;
-    isAdmin = roleName === "admin";
-    isAllowed = ALLOWED_ROLES.has(roleName);
-
-    if (isAllowed) {
-      startEventsListener();
-    } else {
-      stopEventsListener();
-    }
-
-    isCheckingAccess = false;
-    renderView();
-  });
-
-  renderView();
 }
+
+function renderManage(state = {}) {
+  if (!manageRoot || !eventsContainer) {
+    return;
+  }
+  lastRenderState = state;
+
+  const { events = [], filter = "all", isAdmin = false, user = null } = state;
+
+  updateFilterButtons(filter);
+  updateNote({ isAdmin, user });
+
+  if (editingEventId && !events.some((event) => event.id === editingEventId)) {
+    editingEventId = null;
+  }
+
+  eventsContainer.innerHTML = "";
+
+  if (!events.length) {
+    const empty = document.createElement("p");
+    empty.className = "placeholder";
+    empty.textContent = filter === "mine" ? "No events created by you yet." : "No events scheduled.";
+    eventsContainer.appendChild(empty);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  events
+    .slice()
+    .sort((a, b) => {
+      const timeA = getDateValue(a.start)?.getTime?.() ?? Number.MAX_SAFE_INTEGER;
+      const timeB = getDateValue(b.start)?.getTime?.() ?? Number.MAX_SAFE_INTEGER;
+      return timeA - timeB;
+    })
+    .forEach((event) => {
+      const card = createEventCard(event, { isAdmin, user });
+      fragment.appendChild(card);
+    });
+
+  eventsContainer.appendChild(fragment);
+}
+
+function updateFilterButtons(activeFilter) {
+  filterButtons?.forEach((button) => {
+    const isActive = button.dataset.filter === activeFilter;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    button.disabled = isActive;
+  });
+}
+
+function updateNote({ isAdmin, user }) {
+  if (!noteEl) return;
+  if (!user) {
+    noteEl.textContent = "Sign in to manage training events.";
+    return;
+  }
+  if (!isAdmin) {
+    noteEl.textContent = "Viewing events. Contact an admin if you need edit access.";
+    return;
+  }
+  noteEl.textContent = "Admins can edit details inline. Changes are saved instantly.";
+}
+
+function createEventCard(event, { isAdmin, user }) {
+  const card = document.createElement("article");
+  card.className = "manage-event";
+
+  const isEditing = isAdmin && editingEventId === event.id;
+
+  if (isEditing) {
+    card.appendChild(createEventForm(event));
+    return card;
+  }
+
+  const header = document.createElement("header");
+  header.className = "manage-event-header";
+
+  const title = document.createElement("h3");
+  title.textContent = event.title || "Untitled event";
+  header.appendChild(title);
+
+  if (isAdmin) {
+    const actions = document.createElement("div");
+    actions.className = "manage-event-actions";
+
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "button button-secondary";
+    editButton.textContent = "Edit";
+    editButton.addEventListener("click", () => {
+      editingEventId = event.id;
+      rerender();
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "button button-danger";
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", () => {
+      if (!window.confirm("Delete this event? This cannot be undone.")) {
+        return;
+      }
+      const result = handlers.onDelete?.(event.id, event) ?? null;
+      if (result && typeof result.then === "function") {
+        deleteButton.disabled = true;
+        result.catch(() => {}).finally(() => {
+          deleteButton.disabled = false;
+        });
+      }
+    });
+
+    actions.append(editButton, deleteButton);
+    header.appendChild(actions);
+  }
+
+  card.appendChild(header);
+
+  const meta = document.createElement("div");
+  meta.className = "manage-event-meta";
+
+  const dateLine = document.createElement("p");
+  dateLine.textContent = formatDateRange(event.start, event.end);
+  meta.appendChild(dateLine);
+
+  if (event.location) {
+    const locationLine = document.createElement("p");
+    locationLine.textContent = `Location: ${event.location}`;
+    meta.appendChild(locationLine);
+  }
+
+  if (event.notes) {
+    const notesLine = document.createElement("p");
+    notesLine.textContent = event.notes;
+    meta.appendChild(notesLine);
+  }
+
+  card.appendChild(meta);
+
+  if (event.createdBy) {
+    const created = document.createElement("p");
+    created.className = "placeholder";
+    const createdByYou = user?.uid && event.createdBy === user.uid;
+    created.textContent = createdByYou ? "Created by you" : `Created by: ${event.createdBy}`;
+    card.appendChild(created);
+  }
+
+  return card;
+}
+
+function createEventForm(event) {
+  const form = document.createElement("form");
+  form.className = "manage-event-form";
+  form.addEventListener("submit", (eventSubmit) => {
+    eventSubmit.preventDefault();
+    handleSave(form, event);
+  });
+
+  const grid = document.createElement("div");
+  grid.className = "manage-form-grid";
+
+  grid.appendChild(createInputField({
+    label: "Title",
+    name: "title",
+    type: "text",
+    value: event.title || "",
+    required: true,
+  }));
+
+  grid.appendChild(createInputField({
+    label: "Start",
+    name: "start",
+    type: "datetime-local",
+    value: toDateInputValue(event.start),
+    required: true,
+  }));
+
+  grid.appendChild(createInputField({
+    label: "End",
+    name: "end",
+    type: "datetime-local",
+    value: toDateInputValue(event.end),
+  }));
+
+  grid.appendChild(createInputField({
+    label: "Location",
+    name: "location",
+    type: "text",
+    value: event.location || "",
+    placeholder: "Pitch or venue",
+  }));
+
+  form.appendChild(grid);
+
+  form.appendChild(createTextareaField({
+    label: "Notes",
+    name: "notes",
+    value: event.notes || "",
+    placeholder: "Warm-up plan, kit reminders, or links",
+  }));
+
+  const footer = document.createElement("div");
+  footer.className = "manage-event-footer";
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "button button-secondary";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => {
+    editingEventId = null;
+    rerender();
+  });
+
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.className = "button";
+  save.textContent = "Save changes";
+
+  footer.append(cancel, save);
+  form.appendChild(footer);
+
+  return form;
+}
+
+function handleSave(form, event) {
+  const formData = new FormData(form);
+
+  const title = formData.get("title").trim();
+  const startValue = formData.get("start");
+  const endValue = formData.get("end");
+  const location = formData.get("location").trim();
+  const notes = formData.get("notes").trim();
+
+  if (!title) {
+    window.App?.ui?.showToast?.("Title is required", { tone: "error" });
+    return;
+  }
+
+  const start = parseDateValue(startValue);
+  if (!start) {
+    window.App?.ui?.showToast?.("Start date is required", { tone: "error" });
+    return;
+  }
+
+  const end = parseDateValue(endValue);
+  if (end && end < start) {
+    window.App?.ui?.showToast?.("End time must be after the start", { tone: "error" });
+    return;
+  }
+
+  const payload = {
+    title,
+    start,
+    end: end || null,
+    location,
+    notes,
+  };
+
+  const result = handlers.onUpdate?.(event.id, payload, event) ?? null;
+  if (result && typeof result.then === "function") {
+    setFormBusy(form, true);
+    result
+      .then(() => {
+        editingEventId = null;
+      })
+      .catch(() => {})
+      .finally(() => {
+        setFormBusy(form, false);
+        rerender();
+      });
+  } else {
+    editingEventId = null;
+    rerender();
+  }
+}
+
+function setFormBusy(form, isBusy) {
+  [...form.elements].forEach((element) => {
+    element.disabled = isBusy;
+  });
+}
+
+function parseDateValue(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
+}
+
+function createInputField({ label, name, type, value, required = false, placeholder = "" }) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "form-field";
+
+  const fieldLabel = document.createElement("label");
+  const id = `${name}-${++inputIdCounter}`;
+  fieldLabel.setAttribute("for", id);
+  fieldLabel.textContent = label;
+
+  const input = document.createElement("input");
+  input.type = type;
+  input.name = name;
+  input.id = id;
+  input.value = value || "";
+  input.required = required;
+  if (placeholder) {
+    input.placeholder = placeholder;
+  }
+
+  wrapper.append(fieldLabel, input);
+  return wrapper;
+}
+
+function createTextareaField({ label, name, value, placeholder = "" }) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "form-field";
+
+  const fieldLabel = document.createElement("label");
+  const id = `${name}-${++inputIdCounter}`;
+  fieldLabel.setAttribute("for", id);
+  fieldLabel.textContent = label;
+
+  const textarea = document.createElement("textarea");
+  textarea.name = name;
+  textarea.id = id;
+  textarea.value = value || "";
+  if (placeholder) {
+    textarea.placeholder = placeholder;
+  }
+
+  wrapper.append(fieldLabel, textarea);
+  return wrapper;
+}
+
+function toDateInputValue(value) {
+  const date = getDateValue(value);
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function getDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === "function") return value.toDate();
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
+}
+
+function formatDateRange(start, end) {
+  const startDate = getDateValue(start);
+  if (!startDate) {
+    return "Date to be confirmed";
+  }
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const startLabel = formatter.format(startDate);
+  if (!end) {
+    return startLabel;
+  }
+  const endDate = getDateValue(end);
+  if (!endDate) {
+    return startLabel;
+  }
+  const sameDay = startDate.toDateString() === endDate.toDateString();
+  if (sameDay) {
+    const timeFormatter = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
+    return `${startLabel} – ${timeFormatter.format(endDate)}`;
+  }
+  return `${startLabel} – ${formatter.format(endDate)}`;
+}
+
+function rerender() {
+  if (!lastRenderState) return;
+  renderManage(lastRenderState);
+}
+
+window.App = window.App || {};
+window.App.manage = {
+  initManage,
+  renderManage,
+};
+
+export { initManage, renderManage };

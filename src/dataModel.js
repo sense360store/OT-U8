@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   where,
   addDoc,
+  updateDoc,
   deleteDoc,
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
@@ -206,21 +207,13 @@ async function updateEvent(eventId, updates) {
   if (!eventId) {
     throw new Error("Missing event id");
   }
-
-  const allowedKeys = ["title", "start", "end", "location", "notes"];
-  const payload = allowedKeys.reduce((acc, key) => {
-    if (Object.prototype.hasOwnProperty.call(updates, key)) {
-      const value = updates[key];
-      acc[key] = key === "location" || key === "notes" ? value || "" : value;
-    }
-    return acc;
-  }, {});
-
-  payload.updatedAt = serverTimestamp();
-
+  const docRef = doc(collectionRefs.events, eventId);
+  const payload = {
+    ...sanitizeEventPayload(updates),
+    updatedAt: serverTimestamp(),
+  };
   try {
-    await setDoc(doc(db, "events", eventId), payload, { merge: true });
-    return { id: eventId, ...payload };
+    await updateDoc(docRef, payload);
   } catch (error) {
     handleError(error);
     throw error;
@@ -231,13 +224,35 @@ async function deleteEvent(eventId) {
   if (!eventId) {
     throw new Error("Missing event id");
   }
-
   try {
-    await deleteDoc(doc(db, "events", eventId));
+    await deleteDoc(doc(collectionRefs.events, eventId));
   } catch (error) {
     handleError(error);
     throw error;
   }
+}
+
+function sanitizeEventPayload(data = {}) {
+  const result = {};
+  if (typeof data.title === "string") {
+    result.title = data.title;
+  }
+  if (data.start instanceof Date || typeof data.start?.toDate === "function" || data.start === null) {
+    result.start = data.start;
+  }
+  if (data.end instanceof Date || typeof data.end?.toDate === "function" || data.end === null) {
+    result.end = data.end;
+  }
+  if (typeof data.location === "string") {
+    result.location = data.location;
+  }
+  if (typeof data.notes === "string") {
+    result.notes = data.notes;
+  }
+  if (data.createdBy) {
+    result.createdBy = data.createdBy;
+  }
+  return result;
 }
 
 window.App = window.App || {};

@@ -1,5 +1,5 @@
 const ACCESS_HASH = "e15bf824a811af28abcef8b9ef0d74fbb4a8337816965ec29dba26ff484dc837";
-const STORAGE_KEY = "app.access.granted";
+const STORAGE_KEY = "ot_u8_gate";
 
 async function sha256Hex(value) {
   if (!window.crypto?.subtle) {
@@ -20,7 +20,7 @@ async function verifyAccessCode(code) {
 
 function isAccessGranted() {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === "true";
+    return window.localStorage.getItem(STORAGE_KEY) === "1";
   } catch (error) {
     console.warn("Unable to read access flag", error);
     return false;
@@ -29,7 +29,7 @@ function isAccessGranted() {
 
 function setAccessGranted() {
   try {
-    window.localStorage.setItem(STORAGE_KEY, "true");
+    window.localStorage.setItem(STORAGE_KEY, "1");
   } catch (error) {
     console.warn("Unable to persist access flag", error);
   }

@@ -106,6 +106,16 @@ let gateConfigReady = false;
 let calendar;
 let pendingQuickSelection = null;
 
+function gateNeedsInitialSetup() {
+  return (
+    gateConfigReady &&
+    gateState.status === "inactive" &&
+    !gateState.hash &&
+    !gateState.updatedAt &&
+    !gateState.updatedBy
+  );
+}
+
 function getStoredGateToken() {
   try {
     return window.localStorage.getItem(storageKeys.gate);
@@ -1000,8 +1010,9 @@ function renderAuthControls() {
   if (!authControls) return;
   authControls.innerHTML = "";
   const requiresGate = !gateUnlocked && !state.user;
+  const gateUnconfigured = gateNeedsInitialSetup();
 
-  if (requiresGate) {
+  if (requiresGate && !gateUnconfigured) {
     if (!gateConfigReady) {
       const loading = document.createElement("p");
       loading.className = "muted-text";
@@ -1091,6 +1102,13 @@ function renderAuthControls() {
   }
 
   if (!state.user) {
+    if (requiresGate && gateUnconfigured) {
+      const info = document.createElement("p");
+      info.className = "muted-text";
+      info.innerHTML =
+        "<strong>No access code yet.</strong> Sign in to finish setup and generate the first code.";
+      authControls.appendChild(info);
+    }
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button filled";
@@ -1139,6 +1157,7 @@ function renderStatus(mode) {
   if (!statusBody) return;
   statusBody.innerHTML = "";
   const requiresGate = !gateUnlocked && !state.user;
+  const gateUnconfigured = gateNeedsInitialSetup();
 
   if (!gateConfigReady) {
     statusBody.innerHTML = "<p class='muted-text'>Loading access gate…</p>";
@@ -1153,7 +1172,10 @@ function renderStatus(mode) {
   if (requiresGate) {
     const message = document.createElement("p");
     message.className = "muted-text";
-    if (gateState.status === "expired") {
+    if (gateUnconfigured) {
+      message.innerHTML =
+        "<strong>Initial setup.</strong> Sign in to capture your account and configure the first access code.";
+    } else if (gateState.status === "expired") {
       message.textContent = "The previous access code has expired. Contact an admin for a new code.";
     } else if (gateState.status !== "active" || !gateState.hash) {
       message.textContent = "An access code hasn't been configured yet. Contact an admin.";

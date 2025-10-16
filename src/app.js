@@ -1,3 +1,10 @@
+import "./firebase.js";
+import "./auth.js";
+import "./dataModel.js";
+import "./rsvp.js";
+import "./access.js";
+import { initUI, renderAuth, renderEventDetails, showToast as uiShowToast } from "./ui.js";
+
 const DEFAULT_TITLE = "Ossett U8s Training";
 const DEFAULT_LOCATION = "Ossett, ENG";
 const DEFAULT_DURATION_MINUTES = 60;
@@ -9,14 +16,25 @@ let endInput;
 let locationInput;
 let notesInput;
 let errorSummary;
-let toastEl;
 let summaryContainer;
 let summaryList;
 let summaryPlaceholder;
-let toastHideTimer;
-let toastDelayTimer;
 
 const MINUTE_IN_MS = 60 * 1000;
+
+const appState = {
+  user: null,
+  isAdmin: false,
+  hasAccess: false,
+  accessReady: true,
+  events: [],
+  activeEventId: null,
+  rsvps: [],
+  isLoadingRsvps: false,
+};
+
+let unsubscribeEvents;
+let unsubscribeRsvps;
 
 const initFooterYear = () => {
   const yearEl = document.getElementById("year");
@@ -35,7 +53,6 @@ function cacheFormElements() {
   locationInput = form.querySelector("#location");
   notesInput = form.querySelector("#notes");
   errorSummary = document.getElementById("form-errors");
-  toastEl = document.getElementById("toast");
   summaryContainer = document.getElementById("event-summary");
   summaryList = summaryContainer?.querySelector(".summary-list") ?? null;
   summaryPlaceholder = summaryContainer?.querySelector(".placeholder") ?? null;
@@ -88,35 +105,6 @@ function showErrors(messages = []) {
   });
   errorSummary.appendChild(list);
   errorSummary.hidden = false;
-}
-
-function hideToast() {
-  if (!toastEl) return;
-  toastEl.classList.remove("toast-visible");
-  if (toastHideTimer) {
-    window.clearTimeout(toastHideTimer);
-  }
-  toastHideTimer = window.setTimeout(() => {
-    toastEl.hidden = true;
-  }, 220);
-}
-
-function showToast(message, tone = "success") {
-  if (!toastEl) return;
-  if (toastDelayTimer) {
-    window.clearTimeout(toastDelayTimer);
-  }
-  if (toastHideTimer) {
-    window.clearTimeout(toastHideTimer);
-  }
-  toastEl.textContent = message;
-  toastEl.className = tone === "error" ? "toast toast--error" : "toast";
-  toastEl.hidden = false;
-  // Ensure the class change happens in a new frame for transition support.
-  requestAnimationFrame(() => {
-    toastEl.classList.add("toast-visible");
-  });
-  toastDelayTimer = window.setTimeout(hideToast, 4000);
 }
 
 function updateSummary(payload) {
@@ -213,15 +201,202 @@ function handleSubmit(event) {
 
   showErrors([]);
   updateSummary(payload);
-  showToast("Training session saved");
+  uiShowToast("Training session saved", { tone: "success" });
   // eslint-disable-next-line no-console
   console.info("Normalised session payload", payload);
+}
+
+function computeHasAccess() {
+  if (appState.user) {
+    return true;
+  }
+  return window.App?.access?.isAccessGranted?.() ?? false;
+}
+
+function normaliseEvent(event) {
+  if (!event) return null;
+  const toIso = (value) => {
+    if (!value) return value;
+    if (typeof value.toDate === "function") {
+      return value.toDate().toISOString();
+    }
+    if (typeof value === "object" && typeof value.seconds === "number") {
+      return new Date(value.seconds * 1000).toISOString();
+    }
+    return value;
+  };
+
+  return {
+    ...event,
+    start: toIso(event.start),
+    end: toIso(event.end),
+  };
+}
+
+function getActiveEvent() {
+  if (!appState.activeEventId) {
+    return null;
+  }
+  return appState.events.find((event) => event.id === appState.activeEventId) || null;
+}
+
+function renderAuthView() {
+  appState.hasAccess = computeHasAccess();
+  renderAuth({
+    user: appState.user,
+    isAdmin: appState.isAdmin,
+    hasAccess: appState.hasAccess,
+    accessReady: appState.accessReady,
+  });
+}
+
+function renderDetailsView() {
+  renderEventDetails({
+    event: getActiveEvent(),
+    rsvps: appState.rsvps,
+    user: appState.user,
+    isAdmin: appState.isAdmin,
+    isLoadingRsvps: appState.isLoadingRsvps,
+    hasAccess: appState.hasAccess,
+    accessReady: appState.accessReady,
+  });
+}
+
+function refreshRsvpSubscription() {
+  if (typeof unsubscribeRsvps === "function") {
+    unsubscribeRsvps();
+  }
+
+  const eventId = appState.activeEventId;
+  if (!eventId || !appState.user || !window.App?.dataModel?.listenToRsvps) {
+    unsubscribeRsvps = undefined;
+    appState.rsvps = [];
+    appState.isLoadingRsvps = false;
+    renderDetailsView();
+    return;
+  }
+
+  appState.isLoadingRsvps = true;
+  renderDetailsView();
+
+  unsubscribeRsvps = window.App.dataModel.listenToRsvps(eventId, (rsvps) => {
+    appState.rsvps = rsvps;
+    appState.isLoadingRsvps = false;
+    renderDetailsView();
+  });
+}
+
+function subscribeToEvents() {
+  if (!window.App?.dataModel?.listenUpcomingEvents) {
+    return;
+  }
+
+  if (typeof unsubscribeEvents === "function") {
+    unsubscribeEvents();
+  }
+
+  unsubscribeEvents = window.App.dataModel.listenUpcomingEvents((events) => {
+    const normalised = events.map(normaliseEvent);
+    appState.events = normalised;
+
+    if (!appState.activeEventId || !normalised.some((event) => event.id === appState.activeEventId)) {
+      appState.activeEventId = normalised[0]?.id ?? null;
+    }
+
+    renderDetailsView();
+    refreshRsvpSubscription();
+  });
+}
+
+async function handleAuthChange(user) {
+  if (typeof unsubscribeRsvps === "function") {
+    unsubscribeRsvps();
+    unsubscribeRsvps = undefined;
+  }
+
+  appState.user = user;
+  appState.isAdmin = false;
+  appState.accessReady = !user;
+  renderAuthView();
+  renderDetailsView();
+
+  if (!user?.uid) {
+    appState.accessReady = true;
+    appState.isLoadingRsvps = false;
+    renderAuthView();
+    renderDetailsView();
+    return;
+  }
+
+  try {
+    if (window.App?.dataModel?.checkIfAdmin) {
+      appState.isAdmin = await window.App.dataModel.checkIfAdmin(user.uid);
+    }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    appState.accessReady = true;
+    renderAuthView();
+    refreshRsvpSubscription();
+    renderDetailsView();
+  }
+}
+
+function handleRsvpSubmit(status) {
+  const eventId = appState.activeEventId;
+
+  if (!eventId) {
+    uiShowToast("Select a session first", { tone: "error" });
+    return;
+  }
+
+  if (!appState.user) {
+    uiShowToast("Sign in to share your RSVP", { tone: "error" });
+    return;
+  }
+
+  if (!window.App?.dataModel?.saveMyRsvp) {
+    uiShowToast("RSVP service unavailable", { tone: "error" });
+    return;
+  }
+
+  window.App.dataModel
+    .saveMyRsvp(eventId, appState.user, status)
+    .then(() => {
+      uiShowToast("RSVP saved", { tone: "success" });
+    })
+    .catch((error) => {
+      console.error(error);
+      uiShowToast(error?.message || "Unable to save RSVP", { tone: "error" });
+    });
+}
+
+function initRealtimeUi() {
+  initUI({
+    onGoogleSignIn: () => window.App?.auth?.signInWithGoogle?.(),
+    onEmailSignIn: (email, password) => window.App?.auth?.signInWithEmail?.(email, password),
+    onRegister: (email, password, suggestedName) =>
+      window.App?.auth?.registerWithEmail?.(email, password, suggestedName),
+    onResetPassword: (email) => window.App?.auth?.sendReset?.(email),
+    onSignOut: () => window.App?.auth?.signOutUser?.(),
+    onRsvpSubmit: handleRsvpSubmit,
+  });
+
+  renderAuthView();
+  renderDetailsView();
+
+  if (window.App?.auth?.listenToAuth) {
+    window.App.auth.listenToAuth(handleAuthChange);
+  }
+
+  subscribeToEvents();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   initFooterYear();
   cacheFormElements();
   setDefaultFieldValues();
+  initRealtimeUi();
 
   if (!form) {
     return;

@@ -12,9 +12,10 @@ function renderAuth({ user, isAdmin, hasAccess, accessReady }) {
   if (!authContainer) return;
   authContainer.innerHTML = "";
 
-  const hasAccess = window.App?.access?.isAccessGranted?.() ?? false;
+  const computedHasAccess =
+    hasAccess ?? window.App?.access?.isAccessGranted?.() ?? false;
 
-  if (!user && !hasAccess) {
+  if (!user && !computedHasAccess) {
     const gate = window.App.access.createGateElement({
       onAccessGranted: () => {
         renderAuth({ user, isAdmin });
@@ -124,7 +125,7 @@ function renderAuth({ user, isAdmin, hasAccess, accessReady }) {
       accessNote.className = "auth-note";
       accessNote.textContent = "Checking your access…";
       authContainer.appendChild(accessNote);
-    } else if (hasAccess === false) {
+    } else if (computedHasAccess === false) {
       const warning = document.createElement("p");
       warning.className = "auth-note auth-note-warning";
       warning.textContent = "Access required. Contact an administrator for approval.";

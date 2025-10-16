@@ -6,9 +6,13 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
   where,
   addDoc,
+  updateDoc,
+  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const { db } = window.App.firebase;
@@ -17,11 +21,34 @@ const collectionRefs = {
   events: collection(db, "events"),
   rsvps: collection(db, "rsvps"),
   roles: collection(db, "roles"),
+  accessRequests: collection(db, "access_requests"),
+  allowlist: collection(db, "allowlist"),
 };
 
 function handleError(error) {
   console.error(error);
   window.App?.ui?.showToast(error.message || "Firestore error", { tone: "error" });
+}
+
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function toUtcTimestamp(value) {
+  if (!value) return null;
+  if (value instanceof Timestamp) {
+    return value;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Invalid date value");
+  }
+  return Timestamp.fromDate(date);
 }
 
 function listenToEvents(callback) {
@@ -66,6 +93,27 @@ function listenToRsvps(eventId, callback) {
           return aName.localeCompare(bName);
         });
       callback(rsvps);
+    },
+    handleError
+  );
+  return unsubscribe;
+}
+
+function listenUpcomingEvents(callback) {
+  const now = Timestamp.now();
+  const q = query(
+    collectionRefs.events,
+    where("end", ">=", now),
+    orderBy("end"),
+    orderBy("start")
+  );
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const events = snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        .sort((a, b) => toMillis(a.start) - toMillis(b.start));
+      callback(events);
     },
     handleError
   );
@@ -133,33 +181,101 @@ async function checkIfAdmin(uid) {
   }
 }
 
-async function createEvent(data) {
+async function createEvent(data, currentUser) {
+  if (!currentUser?.uid && !data?.createdBy) {
+    throw new Error("You must be signed in to create events");
+  }
+  const createdBy = currentUser?.uid || data.createdBy;
   const payload = {
     title: data.title,
-    start: data.start,
-    end: data.end,
     location: data.location || "",
     notes: data.notes || "",
     createdBy: data.createdBy,
+    updatedAt: serverTimestamp(),
   };
+
+  if (data.start !== undefined && data.start !== null && data.start !== "") {
+    payload.start = toUtcTimestamp(data.start);
+  }
+  if (data.end !== undefined && data.end !== null && data.end !== "") {
+    payload.end = toUtcTimestamp(data.end);
+  }
   return addDoc(collectionRefs.events, payload);
+}
+
+async function updateEvent(eventId, updates) {
+  if (!eventId) {
+    throw new Error("Missing event id");
+  }
+  const docRef = doc(collectionRefs.events, eventId);
+  const payload = {
+    ...sanitizeEventPayload(updates),
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    await updateDoc(docRef, payload);
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
+}
+
+async function deleteEvent(eventId) {
+  if (!eventId) {
+    throw new Error("Missing event id");
+  }
+  try {
+    await deleteDoc(doc(collectionRefs.events, eventId));
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
+}
+
+function sanitizeEventPayload(data = {}) {
+  const result = {};
+  if (typeof data.title === "string") {
+    result.title = data.title;
+  }
+  if (data.start instanceof Date || typeof data.start?.toDate === "function" || data.start === null) {
+    result.start = data.start;
+  }
+  if (data.end instanceof Date || typeof data.end?.toDate === "function" || data.end === null) {
+    result.end = data.end;
+  }
+  if (typeof data.location === "string") {
+    result.location = data.location;
+  }
+  if (typeof data.notes === "string") {
+    result.notes = data.notes;
+  }
+  if (data.createdBy) {
+    result.createdBy = data.createdBy;
+  }
+  return result;
 }
 
 window.App = window.App || {};
 window.App.dataModel = {
   listenToEvents,
+  listenUpcomingEvents,
   listenToRsvps,
   saveMyRsvp,
   getMyRsvp,
   checkIfAdmin,
   createEvent,
+  updateEvent,
+  deleteEvent,
 };
 
 export {
   listenToEvents,
+  listenUpcomingEvents,
   listenToRsvps,
   saveMyRsvp,
   getMyRsvp,
   checkIfAdmin,
   createEvent,
+  updateEvent,
+  deleteEvent,
 };

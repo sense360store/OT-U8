@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Access Manager</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script>
+    window.__FIREBASE_CONFIG = window.__FIREBASE_CONFIG || {
+      apiKey: "YOUR_KEY",
+      authDomain: "YOUR_APP.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      appId: "YOUR_APP_ID"
+    };
+  </script>
+</head>
+<body>
+  <main class="layout" style="max-width: 960px; margin: 2rem auto;">
+    <section class="details-panel" style="grid-column: 1 / -1;">
+      <h1>Access Requests</h1>
+      <p class="placeholder">This page is restricted to admins. Sign in on the main site before opening it.</p>
+      <div id="status" class="alert alert-info">Checking authentication…</div>
+
+      <section id="admin-panel" hidden>
+        <form id="allowlist-form" class="rsvp-form" aria-label="Add email to allowlist">
+          <label>
+            Email
+            <input type="email" id="allowlist-email" name="email" placeholder="coach@example.com" required autocomplete="off">
+          </label>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;">
+            <button type="submit" class="button">Approve access</button>
+            <button type="button" id="clear-selection" class="button button-secondary">Clear</button>
+          </div>
+        </form>
+
+        <div id="requests-container" class="status-group" style="margin-top: 1.5rem;">
+          <h2>Pending requests</h2>
+          <ul id="request-list" class="request-list" style="display:grid;gap:0.75rem;padding:0;list-style:none;"></ul>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="assertive" hidden></div>
+
+  <script type="module" src="../src/firebase.js"></script>
+  <script type="module" src="../src/auth.js"></script>
+  <script type="module" src="../src/dataModel.js"></script>
+  <script type="module" src="../src/ui.js"></script>
+  <script type="module">
+    const statusEl = document.getElementById('status');
+    const adminPanel = document.getElementById('admin-panel');
+    const requestList = document.getElementById('request-list');
+    const allowlistForm = document.getElementById('allowlist-form');
+    const emailInput = document.getElementById('allowlist-email');
+    const clearSelectionButton = document.getElementById('clear-selection');
+
+    let unsubscribeRequests = null;
+
+    function setStatus(message, tone = 'info') {
+      statusEl.textContent = message;
+      statusEl.className = tone === 'error' ? 'alert' : 'alert alert-info';
+    }
+
+    function clearSelection() {
+      emailInput.value = '';
+      allowlistForm.removeAttribute('data-request-id');
+      allowlistForm.removeAttribute('data-request-name');
+    }
+
+    function formatDate(date) {
+      if (!date) {
+        return 'Unknown date';
+      }
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(date);
+    }
+
+    function renderRequests(requests) {
+      requestList.innerHTML = '';
+
+      if (!requests.length) {
+        const empty = document.createElement('li');
+        empty.className = 'placeholder';
+        empty.textContent = 'No pending requests.';
+        requestList.appendChild(empty);
+        return;
+      }
+
+      requests.forEach((request) => {
+        const item = document.createElement('li');
+        item.className = 'card';
+        item.style.padding = '1rem';
+        item.style.display = 'grid';
+        item.style.gap = '0.5rem';
+
+        const header = document.createElement('div');
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'baseline';
+
+        const email = document.createElement('strong');
+        email.textContent = request.email || request.id;
+
+        const date = document.createElement('span');
+        date.className = 'auth-note';
+        date.textContent = formatDate(request.requestedAt);
+
+        header.append(email, date);
+
+        const name = document.createElement('div');
+        name.textContent = request.name || request.displayName || 'Unknown requester';
+
+        const approveButton = document.createElement('button');
+        approveButton.type = 'button';
+        approveButton.className = 'button button-secondary';
+        approveButton.textContent = 'Select for approval';
+        approveButton.addEventListener('click', () => {
+          emailInput.value = request.email || '';
+          allowlistForm.dataset.requestId = request.id;
+          if (request.name || request.displayName) {
+            allowlistForm.dataset.requestName = request.name || request.displayName;
+          } else {
+            allowlistForm.removeAttribute('data-request-name');
+          }
+          emailInput.focus();
+        });
+
+        item.append(header, name, approveButton);
+        requestList.appendChild(item);
+      });
+    }
+
+    async function handleSubmission(event) {
+      event.preventDefault();
+      const email = emailInput.value.trim();
+      if (!email) {
+        window.App.ui.showToast('Enter an email before approving.', { tone: 'error' });
+        return;
+      }
+
+      const submitButton = allowlistForm.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      submitButton.textContent = 'Saving…';
+
+      try {
+        const metadata = {};
+        const matchingRequest = allowlistForm.dataset.requestId
+          ? { id: allowlistForm.dataset.requestId }
+          : null;
+        if (matchingRequest?.id) {
+          metadata.requestId = matchingRequest.id;
+        }
+        if (allowlistForm.dataset.requestName) {
+          metadata.requestedBy = allowlistForm.dataset.requestName;
+        }
+        await window.App.dataModel.addEmailToAllowlist(email, metadata);
+        if (matchingRequest?.id) {
+          await window.App.dataModel.deleteAccessRequest(matchingRequest.id);
+        }
+        window.App.ui.showToast('Access granted.', { tone: 'success' });
+        clearSelection();
+      } catch (error) {
+        console.error(error);
+        window.App.ui.showToast(error.message || 'Failed to approve access.', { tone: 'error' });
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Approve access';
+      }
+    }
+
+    allowlistForm.addEventListener('submit', handleSubmission);
+    clearSelectionButton.addEventListener('click', () => {
+      clearSelection();
+      emailInput.focus();
+    });
+
+    window.App.auth.listenToAuth(async (user) => {
+      if (!user) {
+        setStatus('Please sign in on the main site before opening this page.');
+        adminPanel.hidden = true;
+        if (typeof unsubscribeRequests === 'function') {
+          unsubscribeRequests();
+          unsubscribeRequests = null;
+        }
+        return;
+      }
+
+      const isAdmin = await window.App.dataModel.checkIfAdmin(user.uid);
+      if (!isAdmin) {
+        setStatus('Only admins can manage access requests.');
+        adminPanel.hidden = true;
+        if (typeof unsubscribeRequests === 'function') {
+          unsubscribeRequests();
+          unsubscribeRequests = null;
+        }
+        return;
+      }
+
+      setStatus(`Signed in as ${user.displayName || user.email}. Pending requests appear below.`);
+      adminPanel.hidden = false;
+
+      if (typeof unsubscribeRequests === 'function') {
+        unsubscribeRequests();
+      }
+      unsubscribeRequests = window.App.dataModel.listenToAccessRequests(renderRequests);
+    });
+  </script>
+</body>
+</html>

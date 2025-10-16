@@ -1,128 +1,111 @@
-import { doc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+const ACCESS_HASH = "e15bf824a811af28abcef8b9ef0d74fbb4a8337816965ec29dba26ff484dc837";
+const STORAGE_KEY = "app.access.granted";
 
-const { db } = window.App.firebase;
-
-const COLLECTIONS = {
-  roles: "roles",
-  allowlist: "allowlist",
-};
-
-function normalizeEmail(email) {
-  return (email || "").trim().toLowerCase();
-}
-
-function deriveAccessState({ role = null, allowlisted = false }) {
-  const isAdmin = role === "admin";
-  const hasRoleAccess = role === "coach" || isAdmin;
-  return {
-    role,
-    allowlisted,
-    isAdmin,
-    hasAccess: Boolean(allowlisted || hasRoleAccess),
-  };
-}
-
-function subscribeToAccess(user, callback = () => {}) {
-  const baseState = deriveAccessState({});
-  callback({ ...baseState, isReady: false });
-
-  if (!user) {
-    return () => {};
+async function sha256Hex(value) {
+  if (!window.crypto?.subtle) {
+    throw new Error("Secure hashing is not supported in this browser");
   }
+  const encoder = new TextEncoder();
+  const data = encoder.encode(value);
+  const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
-  let current = { ...baseState };
-  let roleReady = false;
-  const emailKey = normalizeEmail(user.email);
-  let allowReady = !emailKey;
+async function verifyAccessCode(code) {
+  if (!code) return false;
+  const hash = await sha256Hex(code.trim());
+  return hash === ACCESS_HASH;
+}
 
-  const emit = () => {
-    const computed = deriveAccessState(current);
-    callback({ ...computed, isReady: roleReady && allowReady });
-  };
+function isAccessGranted() {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) === "true";
+  } catch (error) {
+    console.warn("Unable to read access flag", error);
+    return false;
+  }
+}
 
-  const unsubscribers = [];
+function setAccessGranted() {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, "true");
+  } catch (error) {
+    console.warn("Unable to persist access flag", error);
+  }
+}
 
-  const roleRef = doc(db, COLLECTIONS.roles, user.uid);
-  unsubscribers.push(
-    onSnapshot(
-      roleRef,
-      (snapshot) => {
-        current.role = snapshot.exists() ? snapshot.data()?.role || null : null;
-        roleReady = true;
-        emit();
-      },
-      (error) => {
-        console.error("Role subscription failed", error);
-        current.role = null;
-        roleReady = true;
-        emit();
-      }
-    )
-  );
+function createGateElement({ onAccessGranted } = {}) {
+  const container = document.createElement("div");
+  container.className = "access-gate";
 
-  if (emailKey) {
-    const allowRef = doc(db, COLLECTIONS.allowlist, emailKey);
-    unsubscribers.push(
-      onSnapshot(
-        allowRef,
-        (snapshot) => {
-          current.allowlisted = snapshot.exists();
-          allowReady = true;
-          emit();
-        },
-        (error) => {
-          console.error("Allowlist subscription failed", error);
-          current.allowlisted = false;
-          allowReady = true;
-          emit();
+  const message = document.createElement("p");
+  message.className = "access-gate__message";
+  message.textContent = "Enter access code to unlock sign-in.";
+
+  const form = document.createElement("form");
+  form.className = "access-gate__form";
+  form.setAttribute("aria-label", "Access code gate");
+
+  const input = document.createElement("input");
+  input.type = "password";
+  input.name = "access-code";
+  input.placeholder = "Access code";
+  input.autocomplete = "off";
+  input.required = true;
+
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.className = "button";
+  submit.textContent = "Unlock";
+
+  const error = document.createElement("p");
+  error.className = "access-gate__error";
+  error.setAttribute("role", "alert");
+  error.hidden = true;
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    error.hidden = true;
+    const code = input.value;
+    if (!code) {
+      return;
+    }
+    submit.disabled = true;
+    input.disabled = true;
+    try {
+      const isValid = await verifyAccessCode(code);
+      if (isValid) {
+        setAccessGranted();
+        if (typeof onAccessGranted === "function") {
+          onAccessGranted();
         }
-      )
-    );
-  }
-
-  return () => {
-    unsubscribers.forEach((unsubscribe) => {
-      if (typeof unsubscribe === "function") {
-        unsubscribe();
+      } else {
+        error.textContent = "Incorrect code. Try again.";
+        error.hidden = false;
       }
-    });
-  };
-}
-
-async function getAccessSnapshot(user) {
-  if (!user) {
-    return deriveAccessState({});
-  }
-
-  const [roleDoc, allowDoc] = await Promise.all([
-    getDoc(doc(db, COLLECTIONS.roles, user.uid)).catch((error) => {
-      console.warn("Unable to fetch role", error);
-      return null;
-    }),
-    (async () => {
-      if (!user.email) {
-        return null;
-      }
-      try {
-        return await getDoc(doc(db, COLLECTIONS.allowlist, normalizeEmail(user.email)));
-      } catch (error) {
-        console.warn("Unable to fetch allowlist entry", error);
-        return null;
-      }
-    })(),
-  ]);
-
-  return deriveAccessState({
-    role: roleDoc?.exists() ? roleDoc.data()?.role || null : null,
-    allowlisted: Boolean(allowDoc?.exists()),
+    } catch (err) {
+      console.error(err);
+      error.textContent = "Unable to verify code in this browser.";
+      error.hidden = false;
+    } finally {
+      form.reset();
+      submit.disabled = false;
+      input.disabled = false;
+      input.focus();
+    }
   });
+
+  form.append(input, submit);
+  container.append(message, form, error);
+  return container;
 }
 
 window.App = window.App || {};
 window.App.access = {
-  subscribeToAccess,
-  getAccessSnapshot,
-  normalizeEmail,
+  isAccessGranted,
+  setAccessGranted,
+  createGateElement,
 };
 
-export { subscribeToAccess, getAccessSnapshot, normalizeEmail };
+export { isAccessGranted, setAccessGranted, createGateElement };

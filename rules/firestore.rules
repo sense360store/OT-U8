@@ -1,86 +1,47 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function getRole(uid) {
-      return get(/databases/$(database)/documents/roles/$(uid));
-    }
-
-    function userRole() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles/$(request.auth.uid))
-        ? getRole(request.auth.uid).data.role
-        : null;
-    }
-
+    function isSignedIn() { return request.auth != null; }
     function isAdmin() {
-      return userRole() == "admin";
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/roles/$(request.auth.uid))
+        && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == "admin";
     }
-
-    function isCoach() {
-      return userRole() == "coach";
-    }
-
-    function normalizedEmail() {
-      return isSignedIn() && request.auth.token.email is string
-        ? lower(request.auth.token.email)
-        : null;
-    }
-
-    function isAllowlisted() {
-      let email = normalizedEmail();
-      return email != null && exists(/databases/$(database)/documents/allowlist/$(email));
-    }
-
-    function canAccessEventData() {
-      return isSignedIn() && (isAdmin() || isCoach() || isAllowlisted());
-    }
-
     function isAllowed() {
-      let email = normalizedEmail();
       return isSignedIn() && (
         exists(/databases/$(database)/documents/roles/$(request.auth.uid)) ||
-        (email != null && exists(/databases/$(database)/documents/allowlist/$(email)))
+        (request.auth.token.email != null &&
+         exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email)))
       );
     }
-
-    function validEventData() {
-      return request.resource.data.keys().hasAll(['title', 'start', 'end', 'createdBy'])
-        && request.resource.data.title is string
-        && request.resource.data.start is timestamp
-        && request.resource.data.end is timestamp
-        && request.resource.data.end > request.resource.data.start
-        && request.resource.data.createdBy is string;
+    function validEvent() {
+      return request.resource.data.keys().hasAll(['title','start','end','createdBy']) &&
+             request.resource.data.title is string &&
+             request.resource.data.start is timestamp &&
+             request.resource.data.end is timestamp &&
+             request.resource.data.end > request.resource.data.start &&
+             request.resource.data.createdBy == request.auth.uid;
     }
 
     match /events/{eventId} {
-      allow read: if canAccessEventData();
-      allow create, update, delete: if isAdmin();
+      allow read: if isAllowed();
+      allow create: if isAllowed() && validEvent();
+      allow update, delete: if isAllowed() && (isAdmin() || resource.data.createdBy == request.auth.uid);
     }
 
     match /rsvps/{rsvpId} {
-      allow read: if canAccessEventData();
+      allow read: if isAllowed();
       allow create, update: if isAllowed()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.eventId + "_" + request.auth.uid == request.resource.data.rsvpId
-        && request.resource.data.rsvpId == rsvpId;
-      allow delete: if isAdmin() || (isAllowed() && resource.data.uid == request.auth.uid && resource.data.rsvpId == rsvpId);
+        && (request.resource.data.eventId + "_" + request.auth.uid == rsvpId);
+      allow delete: if isAdmin() || (isAllowed() && resource.data.uid == request.auth.uid);
     }
 
-    match /roles/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow create, update, delete: if isAdmin();
-    }
-
-    match /allowlist/{email} {
-      allow read: if isAdmin() || (isSignedIn() && normalizedEmail() == email);
-      allow create, update, delete: if isAdmin();
-    }
+    match /roles/{uid}        { allow read, create, update, delete: if isAdmin(); }
+    match /allowlist/{email}  { allow read, create, update, delete: if isAdmin(); }
 
     match /access_requests/{uid} {
-      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && uid == request.auth.uid;
       allow read, update, delete: if isAdmin();
     }
   }

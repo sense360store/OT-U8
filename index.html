@@ -5,13 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ossett U8s Training RSVP</title>
   <base href="/OT-U8/">
-  <link rel="stylesheet" href="assets/styles.css">
   <link
     rel="stylesheet"
     href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css"
     integrity="sha384-OZ0IhPv9n0pL7HdGXGNaVw8o+u2bIgucSzizl4QjF6iccIRqcYPNNX1+KVRjyJmK"
     crossorigin="anonymous"
   >
+  <script
+    src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"
+    integrity="sha384-NbgMOO5SeTEFDThH1hgYrxvG+F5yZunWnRj0Ss4XT3zkUjoU4MNVe95mH+0IMQE0"
+    crossorigin="anonymous"
+    defer
+  ></script>
+  <link rel="stylesheet" href="assets/styles.css">
   <script>
     window.__FIREBASE_CONFIG = window.__FIREBASE_CONFIG || {
       apiKey: "YOUR_API_KEY",
@@ -163,12 +169,46 @@
 
   <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
 
-  <script
-    src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"
-    integrity="sha384-NbgMOO5SeTEFDThH1hgYrxvG+F5yZunWnRj0Ss4XT3zkUjoU4MNVe95mH+0IMQE0"
-    crossorigin="anonymous"
-    defer
-  ></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getAuth,
+      onAuthStateChanged,
+      signInWithPopup,
+      GoogleAuthProvider,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      getDocs,
+      query,
+      where,
+      orderBy,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    window.__deps = {
+      ...(window.__deps || {}),
+      firebase: {
+        initializeApp,
+        getAuth,
+        onAuthStateChanged,
+        signInWithPopup,
+        GoogleAuthProvider,
+        signOut,
+        getFirestore,
+        collection,
+        addDoc,
+        getDocs,
+        query,
+        where,
+        orderBy,
+        serverTimestamp
+      }
+    };
+  </script>
   <script src="src/app.js" type="module"></script>
   <script src="src/main.js" type="module"></script>
 </body>

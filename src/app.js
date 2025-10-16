@@ -1,3 +1,28 @@
+import "./firebase.js";
+import "./calendar.js";
+import "./rsvp.js";
+
+import {
+  listenToAuth,
+  signInWithGoogle,
+  signInWithEmail,
+  registerWithEmail,
+  sendReset,
+  signOutUser,
+} from "./auth.js";
+import {
+  listenToEvents,
+  listenToRsvps,
+  saveMyRsvp,
+  checkIfAdmin,
+} from "./dataModel.js";
+import {
+  initUI,
+  renderAuth,
+  renderEventDetails,
+  showToast as uiShowToast,
+} from "./ui.js";
+
 const DEFAULT_TITLE = "Ossett U8s Training";
 const DEFAULT_LOCATION = "Ossett, ENG";
 const DEFAULT_DURATION_MINUTES = 60;
@@ -17,6 +42,75 @@ let toastHideTimer;
 let toastDelayTimer;
 
 const MINUTE_IN_MS = 60 * 1000;
+
+const appState = {
+  events: [],
+  selectedEventId: null,
+  selectedEvent: null,
+  rsvps: [],
+  isLoadingRsvps: false,
+  user: null,
+  isAdmin: false,
+  hasAccess: window.App?.access?.isAccessGranted?.() ?? null,
+  accessReady: true,
+};
+
+let unsubscribeEvents = null;
+let unsubscribeRsvps = null;
+let unsubscribeAuth = null;
+let currentAdminRequest = 0;
+
+function getCalendarApi() {
+  return window.App?.calendar || {};
+}
+
+function cleanupRsvpListener() {
+  if (typeof unsubscribeRsvps === "function") {
+    unsubscribeRsvps();
+  }
+  unsubscribeRsvps = null;
+  syncSessionState();
+}
+
+function syncSessionState() {
+  window.App = window.App || {};
+  const session = window.App.session || {};
+  session.user = appState.user;
+  session.isAdmin = appState.isAdmin;
+  session.selectedEventId = appState.selectedEventId;
+  session.selectedEvent = appState.selectedEvent;
+  session.events = appState.events.slice();
+  session.rsvps = appState.rsvps.slice();
+  session.getSelectedEvent = () => appState.selectedEvent;
+  session.getEvents = () => appState.events.slice();
+  session.getRsvps = () => appState.rsvps.slice();
+  session.selectEvent = selectEvent;
+  session.clearRsvpListener = cleanupRsvpListener;
+  session.unsubscribeEvents = unsubscribeEvents;
+  session.unsubscribeAuth = unsubscribeAuth;
+  session.unsubscribeRsvps = unsubscribeRsvps;
+  window.App.session = session;
+  window.App.currentUser = appState.user;
+}
+
+function renderAppState() {
+  renderAuth({
+    user: appState.user,
+    isAdmin: appState.isAdmin,
+    hasAccess: appState.hasAccess,
+    accessReady: appState.accessReady,
+  });
+
+  renderEventDetails({
+    event: appState.selectedEvent,
+    rsvps: appState.rsvps,
+    user: appState.user,
+    isAdmin: appState.isAdmin,
+    isLoadingRsvps: appState.isLoadingRsvps,
+    hasAccess: appState.hasAccess,
+    accessReady: appState.accessReady,
+  });
+}
 
 const initFooterYear = () => {
   const yearEl = document.getElementById("year");
@@ -218,10 +312,174 @@ function handleSubmit(event) {
   console.info("Normalised session payload", payload);
 }
 
+function handleEventsUpdate(events = []) {
+  appState.events = Array.isArray(events) ? events.slice() : [];
+
+  const calendarApi = getCalendarApi();
+  try {
+    calendarApi.setEvents?.(appState.events);
+  } catch (error) {
+    console.warn("Unable to update calendar events", error);
+  }
+
+  if (!appState.events.length) {
+    cleanupRsvpListener();
+    appState.selectedEventId = null;
+    appState.selectedEvent = null;
+    appState.rsvps = [];
+    appState.isLoadingRsvps = false;
+    syncSessionState();
+    renderAppState();
+    return;
+  }
+
+  const current = appState.events.find((event) => event.id === appState.selectedEventId) || null;
+  if (!current) {
+    selectEvent(appState.events[0]);
+    return;
+  }
+
+  appState.selectedEvent = current;
+  syncSessionState();
+  renderAppState();
+}
+
+function selectEvent(eventOrId) {
+  const eventId = typeof eventOrId === "string" ? eventOrId : eventOrId?.id ?? null;
+  const eventData =
+    (eventOrId && typeof eventOrId === "object")
+      ? eventOrId
+      : appState.events.find((item) => item.id === eventId) || null;
+
+  if (appState.selectedEventId === eventId && appState.selectedEvent === eventData) {
+    syncSessionState();
+    renderAppState();
+    return;
+  }
+
+  cleanupRsvpListener();
+
+  appState.selectedEventId = eventId;
+  appState.selectedEvent = eventData || null;
+  appState.rsvps = [];
+  appState.isLoadingRsvps = Boolean(eventId);
+
+  try {
+    getCalendarApi().setActiveEvent?.(eventId);
+  } catch (error) {
+    console.warn("Unable to update calendar selection", error);
+  }
+
+  syncSessionState();
+  renderAppState();
+
+  if (!eventId) {
+    appState.isLoadingRsvps = false;
+    syncSessionState();
+    renderAppState();
+    return;
+  }
+
+  const unsubscribe = listenToRsvps(eventId, (rsvpList = []) => {
+    if (appState.selectedEventId !== eventId) {
+      unsubscribe();
+      return;
+    }
+    appState.rsvps = Array.isArray(rsvpList) ? rsvpList.slice() : [];
+    appState.isLoadingRsvps = false;
+    syncSessionState();
+    renderAppState();
+  });
+
+  unsubscribeRsvps = unsubscribe;
+  syncSessionState();
+}
+
+function handleAuthChange(user) {
+  cleanupRsvpListener();
+
+  appState.user = user || null;
+  appState.isAdmin = false;
+  appState.hasAccess = window.App?.access?.isAccessGranted?.() ?? appState.hasAccess;
+
+  syncSessionState();
+  renderAppState();
+
+  if (!user?.uid) {
+    return;
+  }
+
+  const requestId = ++currentAdminRequest;
+  checkIfAdmin(user.uid)
+    .then((isAdmin) => {
+      if (requestId !== currentAdminRequest) {
+        return;
+      }
+      appState.isAdmin = Boolean(isAdmin);
+      syncSessionState();
+      renderAppState();
+    })
+    .catch((error) => {
+      console.error("Failed to check admin status", error);
+    });
+}
+
+async function handleRsvpSubmit(status) {
+  if (!status) {
+    return;
+  }
+  if (!appState.selectedEventId) {
+    uiShowToast("Select an event before responding.", { tone: "error" });
+    return;
+  }
+  if (!appState.user) {
+    uiShowToast("Sign in to RSVP.", { tone: "error" });
+    return;
+  }
+
+  try {
+    await saveMyRsvp(appState.selectedEventId, appState.user, status);
+    uiShowToast("RSVP saved.", { tone: "success" });
+  } catch (error) {
+    console.error(error);
+    uiShowToast(error?.message || "Unable to save RSVP.", { tone: "error" });
+  }
+}
+
+function initRealtimeFeatures() {
+  initUI({
+    onGoogleSignIn: () => signInWithGoogle(),
+    onEmailSignIn: (email, password) => signInWithEmail(email, password),
+    onRegister: (email, password, suggestedName) =>
+      registerWithEmail(email, password, suggestedName),
+    onResetPassword: (email) => sendReset(email),
+    onSignOut: () => signOutUser(),
+    onRsvpSubmit: handleRsvpSubmit,
+  });
+
+  const calendarApi = getCalendarApi();
+  calendarApi.onEventSelected?.((event) => selectEvent(event));
+
+  if (!unsubscribeEvents) {
+    unsubscribeEvents = listenToEvents(handleEventsUpdate);
+    syncSessionState();
+  }
+
+  if (!unsubscribeAuth) {
+    unsubscribeAuth = listenToAuth(handleAuthChange);
+    syncSessionState();
+  }
+
+  syncSessionState();
+  renderAppState();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initFooterYear();
   cacheFormElements();
   setDefaultFieldValues();
+
+  initRealtimeFeatures();
 
   if (!form) {
     return;

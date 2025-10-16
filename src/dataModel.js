@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   where,
   addDoc,
+  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const { db } = window.App.firebase;
@@ -19,6 +20,8 @@ const collectionRefs = {
   events: collection(db, "events"),
   rsvps: collection(db, "rsvps"),
   roles: collection(db, "roles"),
+  accessRequests: collection(db, "access_requests"),
+  allowlist: collection(db, "allowlist"),
 };
 
 function handleError(error) {

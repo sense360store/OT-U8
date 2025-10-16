@@ -159,11 +159,12 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
     return;
   }
 
-  const status = window.App.rsvp.getUserStatus(rsvps, user.uid);
+  const status = window.App.rsvp.getUserStatus(rsvps, user.uid, event.id);
 
   const form = document.createElement("form");
   form.className = "rsvp-form";
   form.setAttribute("aria-label", "RSVP form");
+  form.dataset.eventId = event.id;
 
   const legend = document.createElement("h3");
   legend.textContent = "Your RSVP";
@@ -185,6 +186,29 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
   });
 
   form.appendChild(optionsGroup);
+
+  const selectStatus = (value) => {
+    if (!value) return;
+    const target = form.querySelector(`input[name='rsvp'][value='${value}']`);
+    if (target) {
+      target.checked = true;
+    }
+  };
+
+  if (status) {
+    selectStatus(status);
+  }
+
+  if (user?.uid) {
+    window.App.rsvp
+      .loadUserStatus(event.id, user.uid)
+      .then((resolvedStatus) => {
+        if (!resolvedStatus) return;
+        if (form.dataset.eventId !== event.id) return;
+        selectStatus(resolvedStatus);
+      })
+      .catch(() => {});
+  }
 
   const submit = document.createElement("button");
   submit.type = "submit";

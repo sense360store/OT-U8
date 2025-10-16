@@ -80,8 +80,31 @@ async function saveMyRsvp(eventId, user, status) {
     status,
     updatedAt: serverTimestamp(),
   };
-  await setDoc(doc(db, "rsvps", docId), payload, { merge: true });
-  return payload;
+  try {
+    await setDoc(doc(db, "rsvps", docId), payload, { merge: true });
+    window.App?.rsvp?.cacheUserStatus?.(eventId, user.uid, status);
+    return payload;
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
+}
+
+async function getMyRsvp(eventId, uid) {
+  if (!eventId || !uid) {
+    return null;
+  }
+  try {
+    const docRef = doc(db, "rsvps", `${eventId}_${uid}`);
+    const snapshot = await getDoc(docRef);
+    if (!snapshot.exists()) {
+      return null;
+    }
+    return { id: snapshot.id, ...snapshot.data() };
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
 }
 
 async function checkIfAdmin(uid) {
@@ -114,8 +137,16 @@ window.App.dataModel = {
   listenToEvents,
   listenToRsvps,
   saveMyRsvp,
+  getMyRsvp,
   checkIfAdmin,
   createEvent,
 };
 
-export { listenToEvents, listenToRsvps, saveMyRsvp, checkIfAdmin, createEvent };
+export {
+  listenToEvents,
+  listenToRsvps,
+  saveMyRsvp,
+  getMyRsvp,
+  checkIfAdmin,
+  createEvent,
+};

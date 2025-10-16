@@ -1,4 +1,4 @@
-import {
+const {
   collection,
   query,
   orderBy,
@@ -11,9 +11,28 @@ import {
   serverTimestamp,
   where,
   addDoc,
-  updateDoc,
-  deleteDoc,
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+  Timestamp,
+} = window.__deps || {};
+
+if (
+  !collection ||
+  !query ||
+  !orderBy ||
+  !onSnapshot ||
+  !doc ||
+  !getDoc ||
+  !setDoc ||
+  !updateDoc ||
+  !deleteDoc ||
+  !serverTimestamp ||
+  !where ||
+  !addDoc ||
+  !Timestamp
+) {
+  throw new Error(
+    "Firestore dependencies are missing. Ensure firebase-deps script is loaded before dataModel.js."
+  );
+}
 
 const { db } = window.App.firebase;
 
@@ -185,7 +204,6 @@ async function createEvent(data, currentUser) {
   if (!currentUser?.uid && !data?.createdBy) {
     throw new Error("You must be signed in to create events");
   }
-  const createdBy = currentUser?.uid || data.createdBy;
   const payload = {
     title: data.title,
     location: data.location || "",

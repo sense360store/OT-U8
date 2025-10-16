@@ -1,6 +1,15 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+const {
+  initializeApp,
+  getAuth,
+  GoogleAuthProvider,
+  getFirestore,
+} = window.__deps || {};
+
+if (!initializeApp || !getAuth || !GoogleAuthProvider || !getFirestore) {
+  throw new Error(
+    "Firebase dependencies are missing. Ensure firebase-deps script is loaded before firebase.js."
+  );
+}
 
 const firebaseConfig = window.__FIREBASE_CONFIG;
 

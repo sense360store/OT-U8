@@ -1,9 +1,10 @@
-import {
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+const { collection, onSnapshot, orderBy, query } = window.__deps || {};
+
+if (!collection || !onSnapshot || !orderBy || !query) {
+  throw new Error(
+    "Firestore dependencies are missing. Ensure firebase-deps script is loaded before calendar.js."
+  );
+}
 
 let calendarInstance;
 let unsubscribeEvents;

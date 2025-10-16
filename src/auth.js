@@ -1,4 +1,4 @@
-import {
+const {
   onAuthStateChanged,
   signInWithPopup,
   signInWithEmailAndPassword,
@@ -6,7 +6,21 @@ import {
   sendPasswordResetEmail,
   updateProfile,
   signOut,
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+} = window.__deps || {};
+
+if (
+  !onAuthStateChanged ||
+  !signInWithPopup ||
+  !signInWithEmailAndPassword ||
+  !createUserWithEmailAndPassword ||
+  !sendPasswordResetEmail ||
+  !updateProfile ||
+  !signOut
+) {
+  throw new Error(
+    "Firebase auth dependencies are missing. Ensure firebase-deps script is loaded before auth.js."
+  );
+}
 
 const { auth, googleProvider } = window.App.firebase;
 

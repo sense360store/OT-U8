@@ -398,6 +398,16 @@ document.addEventListener("DOMContentLoaded", () => {
   setDefaultFieldValues();
   initRealtimeUi();
 
+  try {
+    initCalendar({
+      onSelect: (event) => {
+        window.App?.ui?.renderEventDetails?.(event);
+      },
+    });
+  } catch (error) {
+    console.error("Failed to initialise calendar", error);
+  }
+
   if (!form) {
     return;
   }

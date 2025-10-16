@@ -31,11 +31,21 @@ const db = getFirestore(firebaseApp);
 
 window.app = { auth, db };
 
-const gateHash = "95eedfb4b08cfa05e1a66cc97d2539d5b154bc20f74c2ee891c0b7172e65badf";
 const storageKeys = {
   gate: "ot_u8_gate",
   theme: "ot_u8_theme",
   accent: "ot_u8_accent"
+};
+
+const gateDocRef = doc(db, "config", "access_gate");
+
+const gateState = {
+  hash: null,
+  status: "loading",
+  updatedAt: null,
+  expiresAt: null,
+  updatedBy: null,
+  error: null,
 };
 
 const state = {
@@ -90,9 +100,46 @@ const themeToggle = document.getElementById("themeToggle");
 const accentPicker = document.getElementById("accentPicker");
 const mobileQuery = window.matchMedia("(max-width: 900px)");
 
-let gateUnlocked = window.localStorage.getItem(storageKeys.gate) === "1";
+let gateUnlocked = false;
+let gateUnsubscribe = null;
+let gateConfigReady = false;
 let calendar;
 let pendingQuickSelection = null;
+
+function getStoredGateToken() {
+  try {
+    return window.localStorage.getItem(storageKeys.gate);
+  } catch (error) {
+    console.warn("Unable to read access gate token", error);
+    return null;
+  }
+}
+
+function setStoredGateToken(token) {
+  try {
+    if (token) {
+      window.localStorage.setItem(storageKeys.gate, token);
+    } else {
+      window.localStorage.removeItem(storageKeys.gate);
+    }
+  } catch (error) {
+    console.warn("Unable to persist access gate token", error);
+  }
+}
+
+function clearStoredGateToken() {
+  setStoredGateToken(null);
+}
+
+function refreshGateUnlock() {
+  const stored = getStoredGateToken();
+  const activeHash = gateState.status === "active" && typeof gateState.hash === "string" && gateState.hash.length > 0;
+  const matches = Boolean(stored && activeHash && stored === gateState.hash);
+  gateUnlocked = matches;
+  if (!matches && stored) {
+    clearStoredGateToken();
+  }
+}
 
 init();
 
@@ -110,6 +157,7 @@ function init() {
   }
 
   initTheme();
+  subscribeToAccessGate();
   renderAuthControls();
   renderStatus();
   updateDetailsHost();
@@ -137,6 +185,47 @@ function init() {
     renderStatus("checking");
     startEventsListener();
   });
+}
+
+function subscribeToAccessGate() {
+  if (typeof gateUnsubscribe === "function") {
+    gateUnsubscribe();
+  }
+  gateUnsubscribe = onSnapshot(
+    gateDocRef,
+    (snapshot) => {
+      gateConfigReady = true;
+      gateState.error = null;
+      const data = snapshot.exists() ? snapshot.data() : {};
+      const rawHash = typeof data.hash === "string" ? data.hash.trim() : "";
+      let status = data.status || (rawHash ? "active" : "inactive");
+      let expiresAt = data.expiresAt?.toDate?.() ?? null;
+      if (expiresAt && expiresAt instanceof Date && expiresAt.getTime() <= Date.now()) {
+        status = "expired";
+      }
+      gateState.hash = status === "active" && rawHash ? rawHash : null;
+      gateState.status = status;
+      gateState.updatedAt = data.updatedAt?.toDate?.() ?? null;
+      gateState.expiresAt = status === "active" ? expiresAt : null;
+      gateState.updatedBy = data.updatedByEmail || data.updatedBy || null;
+      refreshGateUnlock();
+      renderAuthControls();
+      renderStatus();
+    },
+    (error) => {
+      console.error("Access gate listener error", error);
+      gateConfigReady = true;
+      gateState.error = error;
+      gateState.hash = null;
+      gateState.status = "error";
+      gateState.updatedAt = null;
+      gateState.expiresAt = null;
+      gateState.updatedBy = null;
+      refreshGateUnlock();
+      renderAuthControls();
+      renderStatus();
+    }
+  );
 }
 
 function attachListeners() {
@@ -880,10 +969,67 @@ function renderRsvpGroups(groups) {
   rsvpGroups.hidden = false;
 }
 
+function getGateMetaText() {
+  const segments = [];
+  const updatedAt = formatDateTime(gateState.updatedAt);
+  if (updatedAt) {
+    segments.push(`Updated ${updatedAt}`);
+  }
+  if (gateState.updatedBy) {
+    segments.push(`by ${gateState.updatedBy}`);
+  }
+  const expiresAt = gateState.status === "active" ? formatDateTime(gateState.expiresAt) : null;
+  if (expiresAt) {
+    segments.push(`Expires ${expiresAt}`);
+  }
+  return segments.join(" • ");
+}
+
+function appendGateDetails(container) {
+  const metaText = getGateMetaText();
+  if (!metaText) {
+    return;
+  }
+  const meta = document.createElement("p");
+  meta.className = "muted-text";
+  meta.textContent = metaText;
+  container.appendChild(meta);
+}
+
 function renderAuthControls() {
   if (!authControls) return;
   authControls.innerHTML = "";
-  if (!gateUnlocked) {
+  const requiresGate = !gateUnlocked && !state.user;
+
+  if (requiresGate) {
+    if (!gateConfigReady) {
+      const loading = document.createElement("p");
+      loading.className = "muted-text";
+      loading.textContent = "Loading access gate…";
+      authControls.appendChild(loading);
+      return;
+    }
+
+    if (gateState.error) {
+      const error = document.createElement("p");
+      error.className = "muted-text";
+      error.textContent = "Unable to verify the access gate. Try again later.";
+      authControls.appendChild(error);
+      return;
+    }
+
+    if (gateState.status !== "active" || !gateState.hash) {
+      const message = document.createElement("p");
+      message.className = "muted-text";
+      message.textContent =
+        gateState.status === "expired"
+          ? "The previous access code has expired. Contact an admin for a new code."
+          : "An access code hasn't been configured yet. Contact an admin.";
+      authControls.appendChild(message);
+      appendGateDetails(authControls);
+      return;
+    }
+
     const form = document.createElement("form");
     form.className = "gate-form";
     form.innerHTML = `
@@ -896,27 +1042,51 @@ function renderAuthControls() {
         Unlock
       </button>
     `;
-    const hint = document.createElement("p");
-    hint.className = "muted-text";
-    hint.textContent = "Ask the head coach for the latest code.";
+    const input = form.querySelector("input[name='code']");
+    const submitButton = form.querySelector("button[type='submit']");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const formData = new FormData(form);
-      const input = (formData.get("code") || "").toString();
-      if (!input) return;
-      const hash = await sha256(input.trim());
-      if (hash === gateHash) {
-        gateUnlocked = true;
-        window.localStorage.setItem(storageKeys.gate, "1");
-        showToast("Access unlocked. You can now sign in.");
-        renderAuthControls();
-        renderStatus();
-      } else {
-        showToast("Incorrect access code.");
+      if (!input || !submitButton) return;
+      const value = input.value.trim();
+      if (!value) {
+        return;
+      }
+      if (!gateState.hash || gateState.status !== "active") {
+        showToast("Access gate unavailable. Try again shortly.");
+        return;
+      }
+      submitButton.disabled = true;
+      input.disabled = true;
+      try {
+        const hash = await sha256(value);
+        if (hash === gateState.hash) {
+          setStoredGateToken(gateState.hash);
+          refreshGateUnlock();
+          showToast("Access unlocked. You can now sign in.");
+          renderAuthControls();
+          renderStatus();
+        } else {
+          showToast("Incorrect access code.");
+        }
+      } catch (error) {
+        console.error(error);
+        showToast("Unable to verify the code.");
+      } finally {
+        form.reset();
+        submitButton.disabled = false;
+        input.disabled = false;
+        if (!gateUnlocked) {
+          input.focus();
+        }
       }
     });
     authControls.appendChild(form);
+
+    const hint = document.createElement("p");
+    hint.className = "muted-text";
+    hint.textContent = "Ask the head coach for the latest code.";
     authControls.appendChild(hint);
+    appendGateDetails(authControls);
     return;
   }
 
@@ -968,10 +1138,33 @@ function renderAuthControls() {
 function renderStatus(mode) {
   if (!statusBody) return;
   statusBody.innerHTML = "";
-  if (!gateUnlocked) {
-    statusBody.innerHTML = "<p class='muted-text'>Enter the access code to unlock sign-in.</p>";
+  const requiresGate = !gateUnlocked && !state.user;
+
+  if (!gateConfigReady) {
+    statusBody.innerHTML = "<p class='muted-text'>Loading access gate…</p>";
     return;
   }
+
+  if (gateState.error) {
+    statusBody.innerHTML = "<p class='muted-text'>Unable to check the access gate right now. Try again shortly.</p>";
+    return;
+  }
+
+  if (requiresGate) {
+    const message = document.createElement("p");
+    message.className = "muted-text";
+    if (gateState.status === "expired") {
+      message.textContent = "The previous access code has expired. Contact an admin for a new code.";
+    } else if (gateState.status !== "active" || !gateState.hash) {
+      message.textContent = "An access code hasn't been configured yet. Contact an admin.";
+    } else {
+      message.textContent = "Enter the access code to unlock sign-in.";
+    }
+    statusBody.appendChild(message);
+    appendGateDetails(statusBody);
+    return;
+  }
+
   if (!state.user) {
     statusBody.innerHTML = "<p class='muted-text'>Sign in with Google to view the training calendar.</p>";
     return;
@@ -1069,6 +1262,17 @@ async function createEvent({ title, start, end, location, notes }) {
   };
   await addDoc(collection(db, "events"), payload);
   showToast("Session created.");
+}
+
+function formatDateTime(date) {
+  const value = date instanceof Date ? date : date?.toDate?.() ?? new Date(date);
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(value);
 }
 
 function formatDate(date) {

@@ -1,3 +1,4 @@
+import "./access.js";
 import "./firebase.js";
 import "./auth.js";
 import "./dataModel.js";

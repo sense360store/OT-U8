@@ -34,28 +34,42 @@ body {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--border-color, #e1e1e8);
   background: var(--card-bg, #ffffff);
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .branding {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.branding-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .branding h1 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: clamp(1.2rem, 2.5vw, 1.6rem);
+  word-break: break-word;
 }
 
 .tagline {
   margin: 0;
   color: var(--muted-text, #4d4d4d);
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 2vw, 0.95rem);
 }
 
 .logo {
-  width: 42px;
-  height: 42px;
+  width: clamp(48px, 12vw, 72px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
 }
 
 .auth-area {

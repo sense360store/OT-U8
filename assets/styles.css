@@ -957,6 +957,64 @@ body.dialog-open {
   gap: 0.5rem;
 }
 
+.access-manager {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+
+.access-manager__status {
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: 0.95rem;
+}
+
+.access-manager__section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.access-manager__code {
+  font-family: "Roboto Mono", "Courier New", monospace;
+  font-size: 1.35rem;
+  letter-spacing: 0.12em;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--outline-variant) 65%, transparent);
+  background: var(--surface-container-highest);
+  text-align: center;
+  min-height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.access-manager__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.access-manager__meta {
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: 0.9rem;
+}
+
+.access-manager__generated {
+  font-family: "Roboto Mono", "Courier New", monospace;
+  font-size: 1.1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: var(--surface-container-high);
+  border: 1px dashed color-mix(in srgb, var(--outline-variant) 55%, transparent);
+  text-align: center;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 719px) {
   .data-table {
     display: none;

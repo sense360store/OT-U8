@@ -1,4 +1,4 @@
-import { initCalendar } from "./calendar.js";
+import { initCalendar, onEventSelected } from "./calendar.js";
 
 const DEFAULT_TITLE = "Ossett U8s Training";
 const DEFAULT_LOCATION = "Ossett, ENG";
@@ -226,11 +226,10 @@ document.addEventListener("DOMContentLoaded", () => {
   setDefaultFieldValues();
 
   try {
-    initCalendar({
-      onSelect: (event) => {
-        window.App?.ui?.renderEventDetails?.(event);
-      },
+    onEventSelected((event) => {
+      window.App?.ui?.renderEventDetails?.(event);
     });
+    initCalendar();
   } catch (error) {
     console.error("Failed to initialise calendar", error);
   }

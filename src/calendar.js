@@ -7,8 +7,8 @@ import {
 
 let calendarInstance;
 let unsubscribeEvents;
-let eventSelectedCallback;
-let eventsChangedCallback;
+let eventSelectedCallback = null;
+let eventsChangedCallback = null;
 let currentView = "dayGridMonth";
 let selectedEventId = null;
 let cachedEvents = [];
@@ -28,13 +28,19 @@ let activeDialogCleanup = null;
 
 function initCalendar({
   onSelect,
+  onEventsChanged: onEventsChangedOption,
   getCurrentUser,
   canEditEvent,
   createEvent,
   updateEvent,
   deleteEvent,
 } = {}) {
-  onEventSelected = onSelect;
+  if (typeof onSelect === "function") {
+    onEventSelected(onSelect);
+  }
+  if (typeof onEventsChangedOption === "function") {
+    onEventsChanged(onEventsChangedOption);
+  }
 
   if (typeof getCurrentUser === "function") {
     calendarActions.getCurrentUser = getCurrentUser;
@@ -79,8 +85,8 @@ function initCalendar({
       setActiveEvent(eventId);
       const stored = eventsCache.get(eventId);
       const rawEvent = stored || normalizeEvent({ id: eventId, ...info.event.extendedProps.rawEvent });
-      if (typeof onEventSelected === "function") {
-        onEventSelected(rawEvent);
+      if (typeof eventSelectedCallback === "function") {
+        eventSelectedCallback(rawEvent);
       }
       openEventDetailsDialog(rawEvent);
     },
@@ -669,6 +675,14 @@ function appendMetaRow(list, label, value) {
   const dd = document.createElement("dd");
   dd.textContent = value;
   list.append(dt, dd);
+}
+
+function onEventSelected(callback) {
+  eventSelectedCallback = typeof callback === "function" ? callback : null;
+}
+
+function onEventsChanged(callback) {
+  eventsChangedCallback = typeof callback === "function" ? callback : null;
 }
 
 window.App = window.App || {};

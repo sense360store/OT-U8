@@ -1,6 +1,6 @@
 const detailsContainer = document.getElementById("details");
 const authContainer = document.getElementById("auth-area");
-const toastEl = document.getElementById("toast");
+const toastRoot = document.getElementById("toast");
 
 let uiHandlers = {};
 
@@ -8,9 +8,22 @@ function initUI(handlers = {}) {
   uiHandlers = handlers;
 }
 
-function renderAuth({ user, isAdmin }) {
+function renderAuth({ user, isAdmin, hasAccess, accessReady }) {
   if (!authContainer) return;
   authContainer.innerHTML = "";
+
+  const hasAccess = window.App?.access?.isAccessGranted?.() ?? false;
+
+  if (!user && !hasAccess) {
+    const gate = window.App.access.createGateElement({
+      onAccessGranted: () => {
+        renderAuth({ user, isAdmin });
+        showToast("Access granted. You can sign in now.", { tone: "success" });
+      },
+    });
+    authContainer.append(gate);
+    return;
+  }
 
   if (!user) {
     const googleButton = document.createElement("button");
@@ -105,12 +118,56 @@ function renderAuth({ user, isAdmin }) {
     signOutButton.addEventListener("click", () => uiHandlers.onSignOut?.());
 
     authContainer.append(userInfo, signOutButton);
+
+    if (!accessReady) {
+      const accessNote = document.createElement("p");
+      accessNote.className = "auth-note";
+      accessNote.textContent = "Checking your access…";
+      authContainer.appendChild(accessNote);
+    } else if (hasAccess === false) {
+      const warning = document.createElement("p");
+      warning.className = "auth-note auth-note-warning";
+      warning.textContent = "Access required. Contact an administrator for approval.";
+      authContainer.appendChild(warning);
+    }
   }
 }
 
-function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }) {
+function renderEventDetails({
+  event,
+  rsvps = [],
+  user,
+  isAdmin,
+  isLoadingRsvps,
+  hasAccess,
+  accessReady,
+}) {
   if (!detailsContainer) return;
   detailsContainer.innerHTML = "";
+
+  if (user && !accessReady) {
+    const heading = document.createElement("h2");
+    heading.textContent = "Checking access";
+
+    const note = document.createElement("p");
+    note.className = "placeholder";
+    note.textContent = "Hang tight while we confirm your permissions.";
+
+    detailsContainer.append(heading, note);
+    return;
+  }
+
+  if (user && accessReady && hasAccess === false) {
+    const heading = document.createElement("h2");
+    heading.textContent = "Access required";
+
+    const message = document.createElement("p");
+    message.className = "placeholder";
+    message.textContent = "Only approved coaches can view event schedules and RSVPs. Contact an administrator to request access.";
+
+    detailsContainer.append(heading, message);
+    return;
+  }
 
   if (!event) {
     const placeholder = document.createElement("p");
@@ -159,11 +216,12 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
     return;
   }
 
-  const status = window.App.rsvp.getUserStatus(rsvps, user.uid);
+  const status = window.App.rsvp.getUserStatus(rsvps, user.uid, event.id);
 
   const form = document.createElement("form");
   form.className = "rsvp-form";
   form.setAttribute("aria-label", "RSVP form");
+  form.dataset.eventId = event.id;
 
   const legend = document.createElement("h3");
   legend.textContent = "Your RSVP";
@@ -185,6 +243,29 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
   });
 
   form.appendChild(optionsGroup);
+
+  const selectStatus = (value) => {
+    if (!value) return;
+    const target = form.querySelector(`input[name='rsvp'][value='${value}']`);
+    if (target) {
+      target.checked = true;
+    }
+  };
+
+  if (status) {
+    selectStatus(status);
+  }
+
+  if (user?.uid) {
+    window.App.rsvp
+      .loadUserStatus(event.id, user.uid)
+      .then((resolvedStatus) => {
+        if (!resolvedStatus) return;
+        if (form.dataset.eventId !== event.id) return;
+        selectStatus(resolvedStatus);
+      })
+      .catch(() => {});
+  }
 
   const submit = document.createElement("button");
   submit.type = "submit";
@@ -209,7 +290,15 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
 
     const heading = document.createElement("h3");
     const count = attendees.length;
-    heading.textContent = `${statusMeta?.icon || ""} ${statusMeta?.label || statusKey} (${count})`;
+
+    const headingLabel = document.createElement("span");
+    headingLabel.textContent = `${statusMeta?.icon || ""} ${statusMeta?.label || statusKey}`.trim();
+
+    const headingCount = document.createElement("span");
+    headingCount.textContent = count.toString();
+    headingCount.className = "status-count";
+
+    heading.append(headingLabel, headingCount);
     wrapper.appendChild(heading);
 
     if (!attendees.length) {
@@ -219,7 +308,18 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
       wrapper.appendChild(empty);
     } else {
       const list = document.createElement("ul");
-      attendees.forEach((attendee) => {
+      const sortedAttendees = attendees
+        .slice()
+        .sort((a, b) => {
+          const nameA = (a.coachName || a.uid || "").toLowerCase();
+          const nameB = (b.coachName || b.uid || "").toLowerCase();
+          if (nameA === nameB) {
+            return (a.uid || "").localeCompare(b.uid || "");
+          }
+          return nameA.localeCompare(nameB);
+        });
+
+      sortedAttendees.forEach((attendee) => {
         const item = document.createElement("li");
         const name = document.createElement("span");
         name.className = "attendee-name";
@@ -249,14 +349,50 @@ function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }
   }
 }
 
-function showToast(message, { tone = "default", duration = 4000 } = {}) {
-  if (!toastEl) return;
-  toastEl.textContent = message;
-  toastEl.hidden = false;
-  toastEl.dataset.tone = tone;
-  setTimeout(() => {
-    toastEl.hidden = true;
-  }, duration);
+const DEFAULT_TOAST_DURATION = 3500;
+
+function showToast(message, typeOrOptions) {
+  if (!toastRoot || !message) return;
+
+  let tone = "info";
+  let duration = DEFAULT_TOAST_DURATION;
+
+  if (typeof typeOrOptions === "string") {
+    tone = typeOrOptions;
+  } else if (typeof typeOrOptions === "object" && typeOrOptions !== null) {
+    if (typeOrOptions.type) tone = typeOrOptions.type;
+    if (typeOrOptions.tone) tone = typeOrOptions.tone;
+    if (typeof typeOrOptions.duration === "number") {
+      duration = typeOrOptions.duration;
+    }
+  }
+
+  const normalizedTone = ["success", "error", "info"].includes(tone)
+    ? tone
+    : "info";
+
+  toastRoot.hidden = false;
+  toastRoot.setAttribute(
+    "aria-live",
+    normalizedTone === "error" ? "assertive" : "polite"
+  );
+
+  const toast = document.createElement("div");
+  toast.className = "toast-message";
+  toast.dataset.type = normalizedTone;
+  toast.setAttribute("role", "status");
+  toast.textContent = message;
+
+  toastRoot.appendChild(toast);
+
+  const removeToast = () => {
+    toast.remove();
+    if (!toastRoot.childElementCount) {
+      toastRoot.hidden = true;
+    }
+  };
+
+  window.setTimeout(removeToast, Math.max(duration, 3000));
 }
 
 window.App = window.App || {};

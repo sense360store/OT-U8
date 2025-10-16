@@ -12,6 +12,19 @@ function renderAuth({ user, isAdmin }) {
   if (!authContainer) return;
   authContainer.innerHTML = "";
 
+  const hasAccess = window.App?.access?.isAccessGranted?.() ?? false;
+
+  if (!user && !hasAccess) {
+    const gate = window.App.access.createGateElement({
+      onAccessGranted: () => {
+        renderAuth({ user, isAdmin });
+        showToast("Access granted. You can sign in now.", { tone: "success" });
+      },
+    });
+    authContainer.append(gate);
+    return;
+  }
+
   if (!user) {
     const googleButton = document.createElement("button");
     googleButton.className = "button";

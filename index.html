@@ -47,7 +47,6 @@
         <li><a href="#">Contact</a></li>
       </ul>
     </nav>
-    <div id="auth-area" class="auth-area" aria-live="polite"></div>
   </header>
 
   <main class="site-main" id="main-content">
@@ -123,37 +122,46 @@
           <div id="calendar" class="calendar-surface" aria-live="polite"></div>
         </section>
 
-        <section class="card" id="event-summary">
-          <h2>Normalised session details</h2>
-          <p class="placeholder">Fill out the form to preview the saved session details.</p>
-          <dl class="summary-list" hidden>
-            <div class="summary-item">
-              <dt>Title</dt>
-              <dd data-field="title"></dd>
-            </div>
-            <div class="summary-item">
-              <dt>Location</dt>
-              <dd data-field="location"></dd>
-            </div>
-            <div class="summary-item">
-              <dt>Start (UTC)</dt>
-              <dd data-field="start"></dd>
-            </div>
-            <div class="summary-item">
-              <dt>End (UTC)</dt>
-              <dd data-field="end"></dd>
-            </div>
-            <div class="summary-item">
-              <dt>Notes</dt>
-              <dd data-field="notes"></dd>
-            </div>
-          </dl>
-        </section>
-      </aside>
-    </div>
-  </main>
+      <section class="card" id="event-summary">
+        <h2>Normalised session details</h2>
+        <p class="placeholder">Fill out the form to preview the saved session details.</p>
+        <dl class="summary-list" hidden>
+          <div class="summary-item">
+            <dt>Title</dt>
+            <dd data-field="title"></dd>
+          </div>
+          <div class="summary-item">
+            <dt>Location</dt>
+            <dd data-field="location"></dd>
+          </div>
+          <div class="summary-item">
+            <dt>Start (UTC)</dt>
+            <dd data-field="start"></dd>
+          </div>
+          <div class="summary-item">
+            <dt>End (UTC)</dt>
+            <dd data-field="end"></dd>
+          </div>
+          <div class="summary-item">
+            <dt>Notes</dt>
+            <dd data-field="notes"></dd>
+          </div>
+        </dl>
+      </section>
 
-  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+      <section class="card auth-card">
+        <h2>Coach access</h2>
+        <section id="auth-area" class="auth-area" aria-live="polite"></section>
+      </section>
+
+      <section class="card details-card">
+        <h2>Session RSVPs</h2>
+        <section id="details" class="details" aria-live="polite"></section>
+      </section>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </main>
 
   <footer class="site-footer">
     <div class="container">
@@ -161,14 +169,6 @@
     </div>
   </footer>
 
-  <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
-
-  <script
-    src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"
-    integrity="sha384-NbgMOO5SeTEFDThH1hgYrxvG+F5yZunWnRj0Ss4XT3zkUjoU4MNVe95mH+0IMQE0"
-    crossorigin="anonymous"
-    defer
-  ></script>
   <script src="src/app.js" type="module"></script>
   <script src="src/main.js" type="module"></script>
 </body>

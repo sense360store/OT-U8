@@ -9,6 +9,9 @@ import {
   serverTimestamp,
   where,
   addDoc,
+  updateDoc,
+  deleteDoc,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const { db } = window.App.firebase;
@@ -22,6 +25,27 @@ const collectionRefs = {
 function handleError(error) {
   console.error(error);
   window.App?.ui?.showToast(error.message || "Firestore error", { tone: "error" });
+}
+
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function toUtcTimestamp(value) {
+  if (!value) return null;
+  if (value instanceof Timestamp) {
+    return value;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Invalid date value");
+  }
+  return Timestamp.fromDate(date);
 }
 
 function listenToEvents(callback) {
@@ -66,6 +90,27 @@ function listenToRsvps(eventId, callback) {
           return aName.localeCompare(bName);
         });
       callback(rsvps);
+    },
+    handleError
+  );
+  return unsubscribe;
+}
+
+function listenUpcomingEvents(callback) {
+  const now = Timestamp.now();
+  const q = query(
+    collectionRefs.events,
+    where("end", ">=", now),
+    orderBy("end"),
+    orderBy("start")
+  );
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const events = snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        .sort((a, b) => toMillis(a.start) - toMillis(b.start));
+      callback(events);
     },
     handleError
   );
@@ -133,33 +178,125 @@ async function checkIfAdmin(uid) {
   }
 }
 
-async function createEvent(data) {
+async function createEvent(data, currentUser) {
+  if (!currentUser?.uid && !data?.createdBy) {
+    throw new Error("You must be signed in to create events");
+  }
+  const createdBy = currentUser?.uid || data.createdBy;
   const payload = {
     title: data.title,
-    start: data.start,
-    end: data.end,
     location: data.location || "",
     notes: data.notes || "",
-    createdBy: data.createdBy,
+    createdBy,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   };
+
+  if (data.start !== undefined && data.start !== null && data.start !== "") {
+    payload.start = toUtcTimestamp(data.start);
+  }
+  if (data.end !== undefined && data.end !== null && data.end !== "") {
+    payload.end = toUtcTimestamp(data.end);
+  }
   return addDoc(collectionRefs.events, payload);
+}
+
+async function updateEvent(eventId, patch, currentUser) {
+  if (!eventId) {
+    throw new Error("Event ID is required");
+  }
+  if (!patch || typeof patch !== "object") {
+    throw new Error("Update data is required");
+  }
+
+  const payload = { ...patch };
+
+  if (Object.prototype.hasOwnProperty.call(payload, "start")) {
+    if (payload.start === null || payload.start === "") {
+      payload.start = null;
+    } else if (payload.start) {
+      payload.start = toUtcTimestamp(payload.start);
+    } else {
+      delete payload.start;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "end")) {
+    if (payload.end === null || payload.end === "") {
+      payload.end = null;
+    } else if (payload.end) {
+      payload.end = toUtcTimestamp(payload.end);
+    } else {
+      delete payload.end;
+    }
+  }
+
+  payload.updatedAt = serverTimestamp();
+  if (currentUser?.uid) {
+    payload.updatedBy = currentUser.uid;
+  }
+
+  Object.keys(payload).forEach((key) => {
+    if (payload[key] === undefined) {
+      delete payload[key];
+    }
+  });
+
+  return updateDoc(doc(collectionRefs.events, eventId), payload);
+}
+
+async function deleteEvent(eventId) {
+  if (!eventId) {
+    throw new Error("Event ID is required");
+  }
+  return deleteDoc(doc(collectionRefs.events, eventId));
+}
+
+function isAdmin(user) {
+  if (!user) return false;
+  if (user.isAdmin) return true;
+  if (typeof user.role === "string" && user.role.toLowerCase() === "admin") {
+    return true;
+  }
+  if (Array.isArray(user.roles) && user.roles.includes("admin")) {
+    return true;
+  }
+  if (user.claims?.admin || user.customClaims?.admin) {
+    return true;
+  }
+  return false;
+}
+
+function canEditEvent(event, user) {
+  if (!event || !user) return false;
+  if (isAdmin(user)) return true;
+  return event.createdBy && event.createdBy === user.uid;
 }
 
 window.App = window.App || {};
 window.App.dataModel = {
   listenToEvents,
+  listenUpcomingEvents,
   listenToRsvps,
   saveMyRsvp,
   getMyRsvp,
   checkIfAdmin,
   createEvent,
+  updateEvent,
+  deleteEvent,
+  isAdmin,
+  canEditEvent,
 };
 
 export {
   listenToEvents,
+  listenUpcomingEvents,
   listenToRsvps,
   saveMyRsvp,
   getMyRsvp,
   checkIfAdmin,
   createEvent,
+  updateEvent,
+  deleteEvent,
+  isAdmin,
+  canEditEvent,
 };

@@ -40,22 +40,89 @@
 
   <main class="site-main" id="main-content">
     <div class="container layout">
-      <section class="manage-panel" id="manage-view" aria-labelledby="manage-heading">
-        <div class="manage-header">
-          <div>
-            <h2 id="manage-heading">Manage events</h2>
-            <p class="manage-subtitle">Review, edit, and curate the Ossett U8s training schedule.</p>
+      <section class="intro">
+        <h2>Training session planner</h2>
+        <p>
+          Use the form to draft a new Ossett U8s training session. We'll validate the
+          details, normalise the times to UTC, and keep a handy summary alongside the
+          form so you can double-check everything before sharing it with the team.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Create or edit a session</h2>
+        <form id="event-form" class="event-form" novalidate>
+          <div class="field">
+            <label for="title">Title<span aria-hidden="true">*</span></label>
+            <input id="title" name="title" type="text" required>
+            <p class="field-help">Give the session a short, descriptive name.</p>
           </div>
-          <div class="segmented-control" role="group" aria-label="Filter events">
-            <button type="button" class="segmented-control__button" data-filter="all" aria-pressed="true">All events</button>
-            <button type="button" class="segmented-control__button" data-filter="mine" aria-pressed="false">My events</button>
+
+          <div class="field-group">
+            <div class="field">
+              <label for="start">Start date &amp; time<span aria-hidden="true">*</span></label>
+              <input id="start" name="start" type="datetime-local" required>
+            </div>
+            <div class="field">
+              <label for="end">End date &amp; time</label>
+              <input id="end" name="end" type="datetime-local">
+              <p class="field-help">We'll default to a 60 minute session if left empty.</p>
+            </div>
           </div>
-        </div>
-        <p class="manage-note" data-manage-note></p>
-        <div class="manage-events" data-manage-events></div>
+
+          <div class="field">
+            <label for="location">Location</label>
+            <input id="location" name="location" type="text">
+          </div>
+
+          <div class="field">
+            <label for="notes">Notes</label>
+            <textarea
+              id="notes"
+              name="notes"
+              rows="4"
+              placeholder="Optional session notes, equipment reminders, or focus areas."
+            ></textarea>
+          </div>
+
+          <div id="form-errors" class="form-errors" role="alert" hidden aria-live="assertive"></div>
+
+          <div class="form-actions">
+            <button type="submit" class="button">Save session</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card" id="event-summary">
+        <h2>Normalised session details</h2>
+        <p class="placeholder">Fill out the form to preview the saved session details.</p>
+        <dl class="summary-list" hidden>
+          <div class="summary-item">
+            <dt>Title</dt>
+            <dd data-field="title"></dd>
+          </div>
+          <div class="summary-item">
+            <dt>Location</dt>
+            <dd data-field="location"></dd>
+          </div>
+          <div class="summary-item">
+            <dt>Start (UTC)</dt>
+            <dd data-field="start"></dd>
+          </div>
+          <div class="summary-item">
+            <dt>End (UTC)</dt>
+            <dd data-field="end"></dd>
+          </div>
+          <div class="summary-item">
+            <dt>Notes</dt>
+            <dd data-field="notes"></dd>
+          </div>
+        </dl>
       </section>
     </div>
   </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <footer class="site-footer">
     <div class="container">

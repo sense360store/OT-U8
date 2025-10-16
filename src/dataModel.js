@@ -186,12 +186,12 @@ async function createEvent(data, currentUser) {
   if (!currentUser?.uid && !data?.createdBy) {
     throw new Error("You must be signed in to create events");
   }
-  const createdBy = currentUser?.uid || data.createdBy;
+  const createdBy = data.createdBy || currentUser?.uid;
   const payload = {
     title: data.title,
     location: data.location || "",
     notes: data.notes || "",
-    createdBy: data.createdBy,
+    createdBy,
     updatedAt: serverTimestamp(),
   };
 

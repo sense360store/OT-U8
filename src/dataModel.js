@@ -11,9 +11,7 @@ import {
   serverTimestamp,
   where,
   addDoc,
-  updateDoc,
   deleteDoc,
-  Timestamp,
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const { db } = window.App.firebase;
@@ -191,8 +189,7 @@ async function createEvent(data, currentUser) {
     title: data.title,
     location: data.location || "",
     notes: data.notes || "",
-    createdBy,
-    createdAt: serverTimestamp(),
+    createdBy: data.createdBy,
     updatedAt: serverTimestamp(),
   };
 
@@ -205,75 +202,42 @@ async function createEvent(data, currentUser) {
   return addDoc(collectionRefs.events, payload);
 }
 
-async function updateEvent(eventId, patch, currentUser) {
+async function updateEvent(eventId, updates) {
   if (!eventId) {
-    throw new Error("Event ID is required");
-  }
-  if (!patch || typeof patch !== "object") {
-    throw new Error("Update data is required");
+    throw new Error("Missing event id");
   }
 
-  const payload = { ...patch };
-
-  if (Object.prototype.hasOwnProperty.call(payload, "start")) {
-    if (payload.start === null || payload.start === "") {
-      payload.start = null;
-    } else if (payload.start) {
-      payload.start = toUtcTimestamp(payload.start);
-    } else {
-      delete payload.start;
+  const allowedKeys = ["title", "start", "end", "location", "notes"];
+  const payload = allowedKeys.reduce((acc, key) => {
+    if (Object.prototype.hasOwnProperty.call(updates, key)) {
+      const value = updates[key];
+      acc[key] = key === "location" || key === "notes" ? value || "" : value;
     }
-  }
-  if (Object.prototype.hasOwnProperty.call(payload, "end")) {
-    if (payload.end === null || payload.end === "") {
-      payload.end = null;
-    } else if (payload.end) {
-      payload.end = toUtcTimestamp(payload.end);
-    } else {
-      delete payload.end;
-    }
-  }
+    return acc;
+  }, {});
 
   payload.updatedAt = serverTimestamp();
-  if (currentUser?.uid) {
-    payload.updatedBy = currentUser.uid;
+
+  try {
+    await setDoc(doc(db, "events", eventId), payload, { merge: true });
+    return { id: eventId, ...payload };
+  } catch (error) {
+    handleError(error);
+    throw error;
   }
-
-  Object.keys(payload).forEach((key) => {
-    if (payload[key] === undefined) {
-      delete payload[key];
-    }
-  });
-
-  return updateDoc(doc(collectionRefs.events, eventId), payload);
 }
 
 async function deleteEvent(eventId) {
   if (!eventId) {
-    throw new Error("Event ID is required");
+    throw new Error("Missing event id");
   }
-  return deleteDoc(doc(collectionRefs.events, eventId));
-}
 
-function isAdmin(user) {
-  if (!user) return false;
-  if (user.isAdmin) return true;
-  if (typeof user.role === "string" && user.role.toLowerCase() === "admin") {
-    return true;
+  try {
+    await deleteDoc(doc(db, "events", eventId));
+  } catch (error) {
+    handleError(error);
+    throw error;
   }
-  if (Array.isArray(user.roles) && user.roles.includes("admin")) {
-    return true;
-  }
-  if (user.claims?.admin || user.customClaims?.admin) {
-    return true;
-  }
-  return false;
-}
-
-function canEditEvent(event, user) {
-  if (!event || !user) return false;
-  if (isAdmin(user)) return true;
-  return event.createdBy && event.createdBy === user.uid;
 }
 
 window.App = window.App || {};
@@ -287,8 +251,6 @@ window.App.dataModel = {
   createEvent,
   updateEvent,
   deleteEvent,
-  isAdmin,
-  canEditEvent,
 };
 
 export {
@@ -301,6 +263,4 @@ export {
   createEvent,
   updateEvent,
   deleteEvent,
-  isAdmin,
-  canEditEvent,
 };

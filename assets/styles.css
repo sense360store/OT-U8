@@ -203,6 +203,40 @@ img {
   min-width: 220px;
 }
 
+@media (max-width: 640px) {
+  .site-header {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .branding {
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .branding-text {
+    text-align: center;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .auth-controls {
+    min-width: 0;
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .auth-controls > * {
+    width: 100%;
+  }
+}
+
 .button {
   display: inline-flex;
   align-items: center;

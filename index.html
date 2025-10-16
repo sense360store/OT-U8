@@ -108,9 +108,9 @@
       </div>
 
       <aside class="secondary-column" aria-label="Team schedule and session summary">
-        <section class="card calendar-card">
+        <section class="calendar-panel" aria-labelledby="team-schedule-heading">
           <div class="calendar-toolbar">
-            <h2>Team schedule</h2>
+            <h2 id="team-schedule-heading">Team schedule</h2>
             <div class="calendar-toggle" role="group" aria-label="Calendar view">
               <button type="button" id="view-month" class="toggle-button" aria-pressed="true">
                 Month view
@@ -121,6 +121,10 @@
             </div>
           </div>
           <div id="calendar" class="calendar-surface" aria-live="polite"></div>
+        </section>
+
+        <section class="details-panel" aria-label="RSVP details">
+          <div id="details" class="details" aria-live="polite"></div>
         </section>
 
         <section class="card" id="event-summary">

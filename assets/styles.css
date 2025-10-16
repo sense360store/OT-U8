@@ -1,6 +1,6 @@
 :root {
   color-scheme: light dark;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Roboto Flex", "Segoe UI", system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   --page-bg: #f7f7f9;
   --card-bg: #ffffff;
@@ -158,6 +158,17 @@ main.layout {
   background: var(--accent);
   color: var(--accent-contrast);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-weight: normal;
+  font-style: normal;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .button:hover,

@@ -6,6 +6,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
   where,
   addDoc,
@@ -18,11 +20,34 @@ const collectionRefs = {
   events: collection(db, "events"),
   rsvps: collection(db, "rsvps"),
   roles: collection(db, "roles"),
+  accessRequests: collection(db, "access_requests"),
+  allowlist: collection(db, "allowlist"),
 };
 
 function handleError(error) {
   console.error(error);
   window.App?.ui?.showToast(error.message || "Firestore error", { tone: "error" });
+}
+
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function toUtcTimestamp(value) {
+  if (!value) return null;
+  if (value instanceof Timestamp) {
+    return value;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Invalid date value");
+  }
+  return Timestamp.fromDate(date);
 }
 
 function listenToEvents(callback) {
@@ -67,6 +92,27 @@ function listenToRsvps(eventId, callback) {
           return aName.localeCompare(bName);
         });
       callback(rsvps);
+    },
+    handleError
+  );
+  return unsubscribe;
+}
+
+function listenUpcomingEvents(callback) {
+  const now = Timestamp.now();
+  const q = query(
+    collectionRefs.events,
+    where("end", ">=", now),
+    orderBy("end"),
+    orderBy("start")
+  );
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const events = snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        .sort((a, b) => toMillis(a.start) - toMillis(b.start));
+      callback(events);
     },
     handleError
   );
@@ -134,16 +180,25 @@ async function checkIfAdmin(uid) {
   }
 }
 
-async function createEvent(data) {
+async function createEvent(data, currentUser) {
+  if (!currentUser?.uid && !data?.createdBy) {
+    throw new Error("You must be signed in to create events");
+  }
+  const createdBy = currentUser?.uid || data.createdBy;
   const payload = {
     title: data.title,
-    start: data.start,
-    end: data.end,
     location: data.location || "",
     notes: data.notes || "",
     createdBy: data.createdBy,
     updatedAt: serverTimestamp(),
   };
+
+  if (data.start !== undefined && data.start !== null && data.start !== "") {
+    payload.start = toUtcTimestamp(data.start);
+  }
+  if (data.end !== undefined && data.end !== null && data.end !== "") {
+    payload.end = toUtcTimestamp(data.end);
+  }
   return addDoc(collectionRefs.events, payload);
 }
 
@@ -188,6 +243,7 @@ async function deleteEvent(eventId) {
 window.App = window.App || {};
 window.App.dataModel = {
   listenToEvents,
+  listenUpcomingEvents,
   listenToRsvps,
   saveMyRsvp,
   getMyRsvp,
@@ -199,6 +255,7 @@ window.App.dataModel = {
 
 export {
   listenToEvents,
+  listenUpcomingEvents,
   listenToRsvps,
   saveMyRsvp,
   getMyRsvp,

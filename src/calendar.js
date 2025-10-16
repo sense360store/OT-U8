@@ -1,6 +1,17 @@
+import {
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
 let calendarInstance;
-let onEventSelected;
+let unsubscribeEvents;
+let eventSelectedCallback;
+let eventsChangedCallback;
 let currentView = "dayGridMonth";
+let selectedEventId = null;
+let cachedEvents = [];
 
 const eventsCache = new Map();
 
@@ -46,6 +57,10 @@ function initCalendar({
     throw new Error("Calendar element not found");
   }
 
+  if (!window.App?.firebase?.db) {
+    throw new Error("Firestore is not available. Ensure Firebase is initialized.");
+  }
+
   calendarInstance = new FullCalendar.Calendar(calendarEl, {
     initialView: currentView,
     height: "auto",
@@ -87,6 +102,77 @@ function initCalendar({
 
   monthButton?.addEventListener("click", () => switchView("dayGridMonth", monthButton, listButton));
   listButton?.addEventListener("click", () => switchView("listMonth", listButton, monthButton));
+
+  subscribeToEvents();
+}
+
+function subscribeToEvents() {
+  const { db } = window.App.firebase;
+  const eventsRef = collection(db, "events");
+  const eventsQuery = query(eventsRef, orderBy("start"));
+
+  unsubscribeEvents?.();
+  unsubscribeEvents = onSnapshot(
+    eventsQuery,
+    (snapshot) => {
+      const events = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+      cachedEvents = events;
+      renderEvents(events);
+      if (typeof eventsChangedCallback === "function") {
+        eventsChangedCallback([...cachedEvents]);
+      }
+    },
+    (error) => {
+      console.error("Failed to load events", error);
+    }
+  );
+}
+
+function renderEvents(events) {
+  if (!calendarInstance) return;
+
+  const mappedEvents = events
+    .map((event) => ({
+      rawEvent: event,
+      calendarEvent: {
+        id: event.id,
+        title: event.title || "Training Session",
+        start: normalizeDate(event.start),
+        end: normalizeDate(event.end),
+        extendedProps: { rawEvent: event },
+      },
+    }))
+    .filter((item) => item.calendarEvent.start);
+
+  calendarInstance.batchRendering(() => {
+    calendarInstance.removeAllEvents();
+    mappedEvents.forEach((item) => {
+      calendarInstance.addEvent(item.calendarEvent);
+    });
+  });
+
+  if (selectedEventId) {
+    setActiveEvent(selectedEventId);
+  }
+}
+
+function normalizeDate(value) {
+  if (!value) return null;
+  if (typeof value.toDate === "function") {
+    return value.toDate().toISOString();
+  }
+  if (typeof value === "object" && typeof value.seconds === "number") {
+    return new Date(value.seconds * 1000).toISOString();
+  }
+  try {
+    return new Date(value).toISOString();
+  } catch (error) {
+    console.warn("Unable to parse date", value, error);
+    return null;
+  }
 }
 
 function switchView(viewName, activeButton, inactiveButton) {
@@ -119,6 +205,7 @@ function setEvents(events = []) {
 
 function setActiveEvent(eventId) {
   if (!calendarInstance) return;
+  selectedEventId = eventId;
   calendarInstance.getEvents().forEach((event) => {
     const isActive = event.id === eventId;
     event.setProp("backgroundColor", isActive ? "#dbeafe" : "");
@@ -587,8 +674,9 @@ function appendMetaRow(list, label, value) {
 window.App = window.App || {};
 window.App.calendar = {
   initCalendar,
-  setEvents,
   setActiveEvent,
+  onEventSelected,
+  onEventsChanged,
 };
 
-export { initCalendar, setEvents, setActiveEvent };
+export { initCalendar, setActiveEvent, onEventSelected, onEventsChanged };

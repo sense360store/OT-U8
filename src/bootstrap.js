@@ -58,8 +58,14 @@ const managePanel = document.getElementById("managePanel");
 const closeManage = document.getElementById("closeManage");
 const eventForm = document.getElementById("eventForm");
 const eventsTableBody = document.querySelector("#eventsTable tbody");
+const eventsCards = document.getElementById("eventsCards");
 const eventFormError = document.getElementById("eventFormError");
 const detailsCard = document.getElementById("detailsCard");
+const detailsDesktopHost = document.getElementById("detailsDesktopHost");
+const detailsMobileHost = document.getElementById("detailsMobileHost");
+const detailsSheet = document.getElementById("detailsSheet");
+const detailsScrim = document.getElementById("detailsScrim");
+const closeDetailsSheetBtn = document.getElementById("closeDetailsSheet");
 const detailTitle = document.getElementById("detailTitle");
 const detailWhen = document.getElementById("detailWhen");
 const detailLocation = document.getElementById("detailLocation");
@@ -67,13 +73,26 @@ const detailNotes = document.getElementById("detailNotes");
 const detailsSubtitle = document.getElementById("detailsSubtitle");
 const rsvpForm = document.getElementById("rsvpForm");
 const rsvpGroups = document.getElementById("rsvpGroups");
+const quickAddDialog = document.getElementById("quickAddDialog");
+const quickAddForm = document.getElementById("quickAddForm");
+const quickAddScrim = document.getElementById("quickAddScrim");
+const closeQuickAddBtn = document.getElementById("closeQuickAdd");
+const quickCancelBtn = document.getElementById("quickCancel");
+const quickTitleInput = document.getElementById("quickTitle");
+const quickDateInput = document.getElementById("quickDate");
+const quickStartInput = document.getElementById("quickStart");
+const quickEndInput = document.getElementById("quickEnd");
+const quickLocationInput = document.getElementById("quickLocation");
+const quickNotesInput = document.getElementById("quickNotes");
 const toastEl = document.getElementById("toast");
 const yearEl = document.getElementById("year");
 const themeToggle = document.getElementById("themeToggle");
 const accentPicker = document.getElementById("accentPicker");
+const mobileQuery = window.matchMedia("(max-width: 900px)");
 
 let gateUnlocked = window.localStorage.getItem(storageKeys.gate) === "1";
 let calendar;
+let pendingQuickSelection = null;
 
 init();
 
@@ -82,11 +101,21 @@ function init() {
     yearEl.textContent = new Date().getFullYear();
   }
 
+  if (detailsSheet) {
+    detailsSheet.hidden = true;
+    detailsSheet.setAttribute("aria-hidden", "true");
+  }
+  if (quickAddDialog) {
+    quickAddDialog.hidden = true;
+  }
+
   initTheme();
   renderAuthControls();
   renderStatus();
+  updateDetailsHost();
   initCalendar();
   attachListeners();
+  handleScreenChange(mobileQuery);
 
   onAuthStateChanged(auth, async (user) => {
     state.user = user;
@@ -145,6 +174,30 @@ function attachListeners() {
       eventFormError.textContent = "";
     });
   }
+  if (detailsScrim) {
+    detailsScrim.addEventListener("click", closeDetailsSheet);
+  }
+  if (closeDetailsSheetBtn) {
+    closeDetailsSheetBtn.addEventListener("click", closeDetailsSheet);
+  }
+  if (quickAddForm) {
+    quickAddForm.addEventListener("submit", handleQuickAddSubmit);
+  }
+  if (quickAddScrim) {
+    quickAddScrim.addEventListener("click", closeQuickAddDialog);
+  }
+  if (closeQuickAddBtn) {
+    closeQuickAddBtn.addEventListener("click", closeQuickAddDialog);
+  }
+  if (quickCancelBtn) {
+    quickCancelBtn.addEventListener("click", closeQuickAddDialog);
+  }
+  window.addEventListener("keydown", handleGlobalKeyDown);
+  if (mobileQuery?.addEventListener) {
+    mobileQuery.addEventListener("change", handleScreenChange);
+  } else if (mobileQuery?.addListener) {
+    mobileQuery.addListener(handleScreenChange);
+  }
   window.addEventListener("hashchange", syncSelectedFromHash);
 }
 
@@ -152,11 +205,16 @@ function initCalendar() {
   if (!calendarEl || !window.FullCalendar) return;
   const { Calendar } = window.FullCalendar;
   calendar = new Calendar(calendarEl, {
-    initialView: "dayGridMonth",
+    initialView: mobileQuery.matches ? "listMonth" : "dayGridMonth",
     headerToolbar: {
       left: "prev,next today",
       center: "title",
       right: "dayGridMonth,listMonth"
+    },
+    buttonText: {
+      today: "Today",
+      dayGridMonth: "Month view",
+      listMonth: "List view"
     },
     selectable: true,
     selectMirror: true,
@@ -178,31 +236,162 @@ function handleCalendarSelect(selectionInfo) {
     return;
   }
   const start = new Date(selectionInfo.start);
-  const end = new Date(selectionInfo.end || selectionInfo.start);
+  let end = new Date(selectionInfo.end || selectionInfo.start);
   if (selectionInfo.allDay) {
     start.setHours(18, 0, 0, 0);
     if (!selectionInfo.end) {
-      end.setTime(start.getTime() + 60 * 60 * 1000);
+      end = new Date(start.getTime() + 60 * 60 * 1000);
     } else {
       end.setHours(19, 0, 0, 0);
     }
   }
   if (end <= start) {
-    end.setTime(start.getTime() + 60 * 60 * 1000);
+    end = new Date(start.getTime() + 60 * 60 * 1000);
   }
-  const title = window.prompt("Quick add session title", "Ossett U8s Training");
-  if (!title) return;
-  const payload = {
-    title: title.trim(),
-    location: "",
-    notes: "",
-    start,
-    end
+  pendingQuickSelection = { start, end };
+  openQuickAddDialog();
+}
+
+function openQuickAddDialog() {
+  if (!quickAddDialog || !quickAddForm) return;
+  const selection = pendingQuickSelection || {
+    start: new Date(),
+    end: new Date(Date.now() + 60 * 60 * 1000)
   };
-  createEvent(payload).catch((error) => {
+  quickAddForm.reset();
+  if (quickTitleInput) {
+    quickTitleInput.value = quickTitleInput.value || "Ossett U8s Training";
+  }
+  if (quickDateInput) {
+    quickDateInput.value = formatDateInput(selection.start);
+  }
+  if (quickStartInput) {
+    quickStartInput.value = formatTimeInput(selection.start);
+  }
+  if (quickEndInput) {
+    quickEndInput.value = formatTimeInput(selection.end);
+  }
+  if (quickLocationInput) {
+    quickLocationInput.value = "";
+  }
+  if (quickNotesInput) {
+    quickNotesInput.value = "";
+  }
+  quickAddDialog.hidden = false;
+  quickAddDialog.classList.add("is-open");
+  document.body.classList.add("dialog-open");
+  window.setTimeout(() => {
+    quickTitleInput?.focus();
+  }, 50);
+}
+
+function closeQuickAddDialog() {
+  if (!quickAddDialog) return;
+  quickAddDialog.classList.remove("is-open");
+  quickAddDialog.hidden = true;
+  document.body.classList.remove("dialog-open");
+  pendingQuickSelection = null;
+  quickAddForm?.reset();
+}
+
+async function handleQuickAddSubmit(event) {
+  event.preventDefault();
+  if (!state.user) {
+    showToast("Sign in to add sessions.");
+    return;
+  }
+  const formData = new FormData(quickAddForm);
+  const title = (formData.get("title") || "Ossett U8s Training").toString().trim() || "Ossett U8s Training";
+  const date = formData.get("date");
+  const startTime = formData.get("start");
+  const endTime = formData.get("end");
+  const location = (formData.get("location") || "").toString().trim();
+  const notes = (formData.get("notes") || "").toString().trim();
+
+  const startDate = parseLocalDateTime(date, startTime);
+  const endDate = parseLocalDateTime(date, endTime);
+
+  if (!startDate || !endDate || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    showToast("Check the start and end times before saving.");
+    return;
+  }
+
+  if (endDate <= startDate) {
+    showToast("End time must be after the start time.");
+    return;
+  }
+
+  try {
+    await createEvent({ title, start: startDate, end: endDate, location, notes });
+    closeQuickAddDialog();
+  } catch (error) {
     console.error(error);
-    showToast("Unable to save quick session.");
-  });
+    showToast("Unable to save the session.");
+  }
+}
+
+function handleGlobalKeyDown(event) {
+  if (event.key !== "Escape") return;
+  if (quickAddDialog && quickAddDialog.classList.contains("is-open")) {
+    event.preventDefault();
+    closeQuickAddDialog();
+    return;
+  }
+  if (detailsSheet && detailsSheet.classList.contains("is-open")) {
+    event.preventDefault();
+    closeDetailsSheet();
+  }
+}
+
+function handleScreenChange(event) {
+  const matches = event.matches ?? mobileQuery.matches;
+  updateDetailsHost();
+  if (calendar) {
+    const desiredView = matches ? "listMonth" : "dayGridMonth";
+    if (calendar.view?.type !== desiredView) {
+      calendar.changeView(desiredView);
+    }
+    calendar.updateSize();
+  }
+  if (!matches) {
+    closeDetailsSheet();
+  } else if (matches && state.selectedEventId && state.allowed) {
+    const current = findEvent(state.selectedEventId);
+    if (current) {
+      showDetails(current);
+    }
+  }
+  refreshEventsTable();
+}
+
+function updateDetailsHost() {
+  if (!detailsCard) return;
+  const target = mobileQuery.matches ? detailsMobileHost : detailsDesktopHost;
+  if (target && detailsCard.parentElement !== target) {
+    target.appendChild(detailsCard);
+  }
+  if (!mobileQuery.matches) {
+    closeDetailsSheet();
+  }
+}
+
+function openDetailsSheet() {
+  if (!detailsSheet || !mobileQuery.matches) return;
+  detailsSheet.hidden = false;
+  detailsSheet.classList.add("is-open");
+  detailsSheet.setAttribute("aria-hidden", "false");
+  document.body.classList.add("sheet-open");
+  window.setTimeout(() => {
+    closeDetailsSheetBtn?.focus();
+  }, 50);
+}
+
+function closeDetailsSheet() {
+  if (!detailsSheet) return;
+  detailsSheet.classList.remove("is-open");
+  detailsSheet.setAttribute("aria-hidden", "true");
+  detailsSheet.hidden = true;
+  document.body.classList.remove("sheet-open");
 }
 
 function syncSelectedFromHash() {
@@ -309,46 +498,126 @@ function refreshCalendar(clearOnly = false) {
 }
 
 function refreshEventsTable() {
-  if (!eventsTableBody) return;
-  eventsTableBody.innerHTML = "";
+  if (eventsTableBody) {
+    eventsTableBody.innerHTML = "";
+  }
+  if (eventsCards) {
+    eventsCards.innerHTML = "";
+    eventsCards.hidden = !mobileQuery.matches;
+  }
+
+  const emptyMessage = state.allowed ? "No upcoming sessions yet." : "Sign in to manage sessions.";
+
   if (!state.allowed || state.events.length === 0) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 4;
-    cell.textContent = state.allowed ? "No upcoming sessions yet." : "Sign in to manage sessions.";
-    eventsTableBody.appendChild(row);
-    row.appendChild(cell);
+    if (eventsTableBody) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 4;
+      cell.textContent = emptyMessage;
+      row.appendChild(cell);
+      eventsTableBody.appendChild(row);
+    }
+    if (eventsCards) {
+      const card = document.createElement("div");
+      card.className = "event-card";
+      const text = document.createElement("p");
+      text.className = "muted-text";
+      text.textContent = emptyMessage;
+      card.appendChild(text);
+      eventsCards.appendChild(card);
+    }
     return;
   }
-  state.events.forEach((event) => {
-    const row = document.createElement("tr");
-    const startDate = event.start?.toDate ? event.start.toDate() : new Date(event.start);
-    const canEdit = state.isAdmin || event.createdBy === state.user?.uid;
-    row.innerHTML = `
-      <td>${formatDate(startDate)}</td>
-      <td>${escapeHtml(event.title)}</td>
-      <td>${escapeHtml(event.location || "")}</td>
-      <td class="actions"></td>
-    `;
-    const actionsCell = row.querySelector(".actions");
-    if (canEdit) {
-      const editBtn = document.createElement("button");
-      editBtn.type = "button";
-      editBtn.className = "button text";
-      editBtn.textContent = "Edit";
-      editBtn.addEventListener("click", () => startEditEvent(event.id));
-      actionsCell.appendChild(editBtn);
 
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "button text";
-      deleteBtn.textContent = "Delete";
-      deleteBtn.addEventListener("click", () => deleteEvent(event.id));
-      actionsCell.appendChild(deleteBtn);
-    } else {
-      actionsCell.textContent = "—";
+  state.events.forEach((event) => {
+    const startDate = event.start?.toDate ? event.start.toDate() : new Date(event.start);
+    const endDate = event.end?.toDate ? event.end.toDate() : new Date(event.end);
+    const canEdit = state.isAdmin || event.createdBy === state.user?.uid;
+
+    if (eventsTableBody) {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${formatDate(startDate)}</td>
+        <td>${escapeHtml(event.title)}</td>
+        <td>${escapeHtml(event.location || "")}</td>
+        <td class="actions"></td>
+      `;
+      const actionsCell = row.querySelector(".actions");
+      if (canEdit) {
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "button text";
+        editBtn.textContent = "Edit";
+        editBtn.addEventListener("click", () => startEditEvent(event.id));
+        actionsCell.appendChild(editBtn);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "button text";
+        deleteBtn.textContent = "Delete";
+        deleteBtn.addEventListener("click", () => deleteEvent(event.id));
+        actionsCell.appendChild(deleteBtn);
+      } else {
+        actionsCell.textContent = "—";
+      }
+      eventsTableBody.appendChild(row);
     }
-    eventsTableBody.appendChild(row);
+
+    if (eventsCards) {
+      const card = document.createElement("article");
+      card.className = "event-card";
+      const titleEl = document.createElement("h4");
+      titleEl.textContent = event.title || "Untitled session";
+      const meta = document.createElement("div");
+      meta.className = "event-card__meta";
+
+      const dateSpan = document.createElement("span");
+      dateSpan.innerHTML = `<span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>${formatDate(startDate)}`;
+      meta.appendChild(dateSpan);
+
+      const timeSpan = document.createElement("span");
+      timeSpan.innerHTML = `<span class="material-symbols-rounded" aria-hidden="true">schedule</span>${formatTimeRange(startDate, endDate)}`;
+      meta.appendChild(timeSpan);
+
+      if (event.location) {
+        const locationSpan = document.createElement("span");
+        locationSpan.innerHTML = `<span class="material-symbols-rounded" aria-hidden="true">location_on</span>${escapeHtml(event.location)}`;
+        meta.appendChild(locationSpan);
+      }
+
+      card.appendChild(titleEl);
+      card.appendChild(meta);
+
+      if (event.notes) {
+        const notes = document.createElement("p");
+        notes.className = "muted-text";
+        notes.textContent = event.notes;
+        card.appendChild(notes);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "event-card__actions";
+      if (canEdit) {
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "button tonal";
+        editBtn.textContent = "Edit";
+        editBtn.addEventListener("click", () => startEditEvent(event.id));
+        actions.appendChild(editBtn);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "button text";
+        deleteBtn.textContent = "Delete";
+        deleteBtn.addEventListener("click", () => deleteEvent(event.id));
+        actions.appendChild(deleteBtn);
+      }
+      if (actions.childElementCount > 0) {
+        card.appendChild(actions);
+      }
+
+      eventsCards.appendChild(card);
+    }
   });
 }
 
@@ -470,6 +739,7 @@ function showDetails(event) {
     rsvpForm.hidden = true;
     rsvpGroups.hidden = true;
     detailsSubtitle.textContent = state.allowed ? "Choose a session to see the plan." : "Sign in to view session details.";
+    closeDetailsSheet();
     return;
   }
   detailsCard.removeAttribute("hidden");
@@ -482,6 +752,14 @@ function showDetails(event) {
     rsvpForm.hidden = false;
     rsvpGroups.hidden = false;
     rsvpForm.reset();
+  } else {
+    rsvpForm.hidden = true;
+    rsvpGroups.hidden = true;
+  }
+  if (mobileQuery.matches) {
+    openDetailsSheet();
+  } else {
+    closeDetailsSheet();
   }
 }
 
@@ -798,6 +1076,16 @@ function formatDate(date) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(d);
 }
 
+function formatTimeRange(start, end) {
+  const startDate = start instanceof Date ? start : start?.toDate?.() ?? new Date(start);
+  const endDate = end instanceof Date ? end : end?.toDate?.() ?? new Date(end);
+  if (Number.isNaN(startDate?.getTime()) || Number.isNaN(endDate?.getTime())) {
+    return "Time to be confirmed";
+  }
+  const formatter = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
+  return `${formatter.format(startDate)} – ${formatter.format(endDate)}`;
+}
+
 function formatDateRange(start, end) {
   const startDate = start?.toDate ? start.toDate() : new Date(start);
   const endDate = end?.toDate ? end.toDate() : new Date(end);
@@ -871,6 +1159,8 @@ function initTheme() {
     root.setAttribute("data-theme", "dark");
   } else if (stored === "light") {
     root.removeAttribute("data-theme");
+  } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    root.setAttribute("data-theme", "dark");
   }
   if (themeToggle) {
     const isDark = root.getAttribute("data-theme") === "dark";

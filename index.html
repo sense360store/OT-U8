@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Ossett U8s Training RSVP</title>
   <base href="/OT-U8/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -49,6 +49,10 @@
         src="./assets/ossett-town-juniors-logo.png"
         alt="Ossett Town Juniors logo"
         class="logo"
+        loading="lazy"
+        decoding="async"
+        width="160"
+        height="160"
         onerror="this.onerror=null;this.src='https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTyu6N7hTAm3wyYdXq_7aQm-hjdJWP-Icv0Og&s';"
       >
       <div class="branding-text">
@@ -98,6 +102,7 @@
           <div id="statusBody" class="card-body"></div>
         </section>
 
+      <div id="detailsDesktopHost">
         <section class="card details-card" id="detailsCard" hidden aria-live="polite">
           <header class="card-header">
             <div>
@@ -146,6 +151,7 @@
             <section class="rsvp-groups" id="rsvpGroups" hidden></section>
           </div>
         </section>
+      </div>
       </section>
     </div>
 
@@ -217,12 +223,77 @@
                 </thead>
                 <tbody></tbody>
               </table>
+              <div class="event-cards" id="eventsCards" hidden aria-live="polite"></div>
             </section>
           </div>
         </article>
       </div>
     </section>
   </main>
+
+  <div id="detailsSheet" class="details-sheet" aria-hidden="true" hidden>
+    <div class="sheet-scrim" id="detailsScrim" role="presentation"></div>
+    <div class="sheet-surface" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <button id="closeDetailsSheet" class="icon-button sheet-close" type="button" aria-label="Close session details">
+        <span class="material-symbols-rounded" aria-hidden="true">close</span>
+      </button>
+      <div id="detailsMobileHost"></div>
+    </div>
+  </div>
+
+  <div id="quickAddDialog" class="quick-dialog" role="dialog" aria-modal="true" aria-labelledby="quickAddTitle" hidden>
+    <div class="quick-dialog__scrim" id="quickAddScrim" role="presentation"></div>
+    <div class="quick-dialog__surface">
+      <header class="quick-dialog__header">
+        <div>
+          <h2 id="quickAddTitle">Quick add session</h2>
+          <p class="quick-dialog__subtitle">Adjust the details and save to add this slot.</p>
+        </div>
+        <button id="closeQuickAdd" class="icon-button" type="button" aria-label="Close quick add">
+          <span class="material-symbols-rounded" aria-hidden="true">close</span>
+        </button>
+      </header>
+      <form id="quickAddForm" class="quick-dialog__form">
+        <label class="field">
+          <span>Title</span>
+          <input type="text" id="quickTitle" name="title" required value="Ossett U8s Training">
+        </label>
+        <div class="quick-dialog__row">
+          <label class="field">
+            <span>Date</span>
+            <input type="date" id="quickDate" name="date" required>
+          </label>
+          <label class="field">
+            <span>Start</span>
+            <input type="time" id="quickStart" name="start" required>
+          </label>
+          <label class="field">
+            <span>End</span>
+            <input type="time" id="quickEnd" name="end" required>
+          </label>
+        </div>
+        <label class="field">
+          <span>Location</span>
+          <input type="text" id="quickLocation" name="location" placeholder="Ingfield Training Ground">
+        </label>
+        <label class="field">
+          <span>Notes</span>
+          <textarea id="quickNotes" name="notes" rows="2" placeholder="Add optional notes"></textarea>
+        </label>
+        <div class="quick-dialog__actions">
+          <button type="submit" class="button filled">
+            <span class="material-symbols-rounded" aria-hidden="true">save</span>
+            Save session
+          </button>
+          <button type="button" id="quickCancel" class="button text">
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <footer class="site-footer">
     <div class="container">
@@ -236,6 +307,7 @@
     src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"
     integrity="sha384-We2C0x6cm73ao+KU3QNw4Ye5AgVd27ZIn1ZM7ps28hmgcns7HSeFtGWsnj/5I0xF"
     crossorigin="anonymous"
+    defer
   ></script>
   <script type="module" src="./src/bootstrap.js" defer></script>
 </body>

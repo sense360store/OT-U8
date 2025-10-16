@@ -1,27 +1,16 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-import { getAuth, setPersistence, browserLocalPersistence, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-const config = window.__FIREBASE_CONFIG;
-if (!config) {
+const firebaseConfig = window.__FIREBASE_CONFIG;
+
+if (!firebaseConfig) {
   throw new Error("Firebase config is missing. Set window.__FIREBASE_CONFIG in index.html.");
 }
 
-const firebaseApp = initializeApp(config);
-const auth = getAuth(firebaseApp);
-const googleProvider = new GoogleAuthProvider();
-setPersistence(auth, browserLocalPersistence).catch((error) => {
-  console.error("Failed to set auth persistence", error);
-});
+const app = initializeApp(firebaseConfig);
 
-const db = getFirestore(firebaseApp);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-window.App = window.App || {};
-window.App.firebase = {
-  app: firebaseApp,
-  auth,
-  db,
-  googleProvider,
-};
-
-export { firebaseApp as app, auth, db, googleProvider };
+export { auth, db };

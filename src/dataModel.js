@@ -6,6 +6,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
   where,
   addDoc,
@@ -20,6 +22,8 @@ const collectionRefs = {
   events: collection(db, "events"),
   rsvps: collection(db, "rsvps"),
   roles: collection(db, "roles"),
+  accessRequests: collection(db, "access_requests"),
+  allowlist: collection(db, "allowlist"),
 };
 
 function handleError(error) {

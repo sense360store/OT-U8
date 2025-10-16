@@ -8,7 +8,7 @@ function initUI(handlers = {}) {
   uiHandlers = handlers;
 }
 
-function renderAuth({ user, isAdmin }) {
+function renderAuth({ user, isAdmin, hasAccess, accessReady }) {
   if (!authContainer) return;
   authContainer.innerHTML = "";
 
@@ -118,12 +118,56 @@ function renderAuth({ user, isAdmin }) {
     signOutButton.addEventListener("click", () => uiHandlers.onSignOut?.());
 
     authContainer.append(userInfo, signOutButton);
+
+    if (!accessReady) {
+      const accessNote = document.createElement("p");
+      accessNote.className = "auth-note";
+      accessNote.textContent = "Checking your access…";
+      authContainer.appendChild(accessNote);
+    } else if (hasAccess === false) {
+      const warning = document.createElement("p");
+      warning.className = "auth-note auth-note-warning";
+      warning.textContent = "Access required. Contact an administrator for approval.";
+      authContainer.appendChild(warning);
+    }
   }
 }
 
-function renderEventDetails({ event, rsvps = [], user, isAdmin, isLoadingRsvps }) {
+function renderEventDetails({
+  event,
+  rsvps = [],
+  user,
+  isAdmin,
+  isLoadingRsvps,
+  hasAccess,
+  accessReady,
+}) {
   if (!detailsContainer) return;
   detailsContainer.innerHTML = "";
+
+  if (user && !accessReady) {
+    const heading = document.createElement("h2");
+    heading.textContent = "Checking access";
+
+    const note = document.createElement("p");
+    note.className = "placeholder";
+    note.textContent = "Hang tight while we confirm your permissions.";
+
+    detailsContainer.append(heading, note);
+    return;
+  }
+
+  if (user && accessReady && hasAccess === false) {
+    const heading = document.createElement("h2");
+    heading.textContent = "Access required";
+
+    const message = document.createElement("p");
+    message.className = "placeholder";
+    message.textContent = "Only approved coaches can view event schedules and RSVPs. Contact an administrator to request access.";
+
+    detailsContainer.append(heading, message);
+    return;
+  }
 
   if (!event) {
     const placeholder = document.createElement("p");

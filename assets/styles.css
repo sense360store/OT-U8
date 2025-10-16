@@ -289,3 +289,8 @@ main.layout {
   margin: 0;
   text-align: center;
 }
+
+.auth-note-warning {
+  color: #b45309;
+  font-weight: 600;
+}

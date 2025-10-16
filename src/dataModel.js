@@ -9,6 +9,7 @@ import {
   serverTimestamp,
   where,
   addDoc,
+  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const { db } = window.App.firebase;
@@ -141,8 +142,47 @@ async function createEvent(data) {
     location: data.location || "",
     notes: data.notes || "",
     createdBy: data.createdBy,
+    updatedAt: serverTimestamp(),
   };
   return addDoc(collectionRefs.events, payload);
+}
+
+async function updateEvent(eventId, updates) {
+  if (!eventId) {
+    throw new Error("Missing event id");
+  }
+
+  const allowedKeys = ["title", "start", "end", "location", "notes"];
+  const payload = allowedKeys.reduce((acc, key) => {
+    if (Object.prototype.hasOwnProperty.call(updates, key)) {
+      const value = updates[key];
+      acc[key] = key === "location" || key === "notes" ? value || "" : value;
+    }
+    return acc;
+  }, {});
+
+  payload.updatedAt = serverTimestamp();
+
+  try {
+    await setDoc(doc(db, "events", eventId), payload, { merge: true });
+    return { id: eventId, ...payload };
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
+}
+
+async function deleteEvent(eventId) {
+  if (!eventId) {
+    throw new Error("Missing event id");
+  }
+
+  try {
+    await deleteDoc(doc(db, "events", eventId));
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
 }
 
 window.App = window.App || {};
@@ -153,6 +193,8 @@ window.App.dataModel = {
   getMyRsvp,
   checkIfAdmin,
   createEvent,
+  updateEvent,
+  deleteEvent,
 };
 
 export {
@@ -162,4 +204,6 @@ export {
   getMyRsvp,
   checkIfAdmin,
   createEvent,
+  updateEvent,
+  deleteEvent,
 };

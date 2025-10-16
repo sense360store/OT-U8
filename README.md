@@ -36,6 +36,8 @@ management.
    - Sign in once so your account appears under **Authentication → Users**.
    - In Firestore create `roles/{uid}` with `{ "role": "admin" }` for your UID
      so you can approve other coaches.
+     When no access code has been set yet the sign-in button is shown so the
+     initial admin can complete this step.
    - Allowlist additional coaches by adding documents at
      `allowlist/{coach-email}` with any placeholder data (e.g. `{ allowed: true }`).
    - Coaches without allowlist/role access can submit an access request via the

@@ -6,6 +6,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
   where,
   addDoc,
@@ -141,8 +143,51 @@ async function createEvent(data) {
     location: data.location || "",
     notes: data.notes || "",
     createdBy: data.createdBy,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   };
   return addDoc(collectionRefs.events, payload);
+}
+
+async function updateEvent(eventId, data) {
+  if (!eventId) {
+    throw new Error("Missing event ID");
+  }
+  const docRef = doc(collectionRefs.events, eventId);
+  const payload = {
+    ...(data.title !== undefined ? { title: data.title } : {}),
+    ...(data.start !== undefined ? { start: data.start } : {}),
+    ...(data.end !== undefined ? { end: data.end } : {}),
+    ...(data.location !== undefined ? { location: data.location } : {}),
+    ...(data.notes !== undefined ? { notes: data.notes } : {}),
+    updatedAt: serverTimestamp(),
+  };
+  return updateDoc(docRef, payload);
+}
+
+async function deleteEvent(eventId) {
+  if (!eventId) {
+    throw new Error("Missing event ID");
+  }
+  const docRef = doc(collectionRefs.events, eventId);
+  return deleteDoc(docRef);
+}
+
+async function getUserRole(uid) {
+  if (!uid) {
+    return null;
+  }
+  try {
+    const roleDoc = await getDoc(doc(collectionRefs.roles, uid));
+    if (!roleDoc.exists()) {
+      return null;
+    }
+    const payload = roleDoc.data() || {};
+    return { id: roleDoc.id, ...payload };
+  } catch (error) {
+    console.warn("Unable to load user role", error);
+    return null;
+  }
 }
 
 window.App = window.App || {};
@@ -153,6 +198,9 @@ window.App.dataModel = {
   getMyRsvp,
   checkIfAdmin,
   createEvent,
+  updateEvent,
+  deleteEvent,
+  getUserRole,
 };
 
 export {
@@ -162,4 +210,7 @@ export {
   getMyRsvp,
   checkIfAdmin,
   createEvent,
+  updateEvent,
+  deleteEvent,
+  getUserRole,
 };

@@ -24,6 +24,7 @@
           <li><a href="#">Home</a></li>
           <li><a href="#">Schedule</a></li>
           <li><a href="#">Contact</a></li>
+          <li><a href="#manage" id="manage-nav" class="button">Manage</a></li>
         </ul>
       </nav>
     </div>
@@ -31,7 +32,13 @@
 
   <main class="site-main" id="main-content">
     <div class="container">
-      <!-- Future content will live here. -->
+      <section id="manage" class="manage-panel" hidden aria-labelledby="manage-heading">
+        <header class="manage-header">
+          <h2 id="manage-heading">Manage sessions</h2>
+          <p>Signed-in coaches can create, edit, or share upcoming training sessions.</p>
+        </header>
+        <p class="placeholder">Loading management tools…</p>
+      </section>
     </div>
   </main>
 
@@ -41,6 +48,7 @@
     </div>
   </footer>
 
+  <script type="module" src="src/manage.js"></script>
   <script src="src/app.js" type="module"></script>
 </body>
 </html>

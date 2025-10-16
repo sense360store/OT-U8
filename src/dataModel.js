@@ -9,6 +9,7 @@ import {
   serverTimestamp,
   where,
   addDoc,
+  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const { db } = window.App.firebase;
@@ -17,6 +18,8 @@ const collectionRefs = {
   events: collection(db, "events"),
   rsvps: collection(db, "rsvps"),
   roles: collection(db, "roles"),
+  accessRequests: collection(db, "access_requests"),
+  allowlist: collection(db, "allowlist"),
 };
 
 function handleError(error) {
@@ -109,6 +112,73 @@ async function createEvent(data) {
   return addDoc(collectionRefs.events, payload);
 }
 
+function listenToAccessRequests(callback) {
+  const q = query(collectionRefs.accessRequests);
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const requests = snapshot.docs
+        .map((docSnap) => {
+          const data = docSnap.data() || {};
+          const requestedAt = getTimestampValue(data);
+          return {
+            id: docSnap.id,
+            ...data,
+            requestedAt,
+          };
+        })
+        .sort((a, b) => {
+          const aTime = a.requestedAt?.getTime?.() || 0;
+          const bTime = b.requestedAt?.getTime?.() || 0;
+          return bTime - aTime;
+        });
+      callback(requests);
+    },
+    handleError
+  );
+  return unsubscribe;
+}
+
+async function addEmailToAllowlist(email, metadata = {}) {
+  if (!email) {
+    throw new Error("Email is required");
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  const payload = {
+    email: normalizedEmail,
+    addedAt: serverTimestamp(),
+    ...metadata,
+  };
+  await setDoc(doc(collectionRefs.allowlist, normalizedEmail), payload, { merge: true });
+  return payload;
+}
+
+function deleteAccessRequest(requestId) {
+  if (!requestId) {
+    return Promise.resolve();
+  }
+  return deleteDoc(doc(collectionRefs.accessRequests, requestId));
+}
+
+function getTimestampValue(data) {
+  const candidates = [
+    data?.createdAt,
+    data?.requestedAt,
+    data?.timestamp,
+    data?.submittedAt,
+  ];
+  for (const value of candidates) {
+    if (!value) continue;
+    if (typeof value.toDate === "function") {
+      return value.toDate();
+    }
+    if (value instanceof Date) {
+      return value;
+    }
+  }
+  return null;
+}
+
 window.App = window.App || {};
 window.App.dataModel = {
   listenToEvents,
@@ -116,6 +186,18 @@ window.App.dataModel = {
   saveMyRsvp,
   checkIfAdmin,
   createEvent,
+  listenToAccessRequests,
+  addEmailToAllowlist,
+  deleteAccessRequest,
 };
 
-export { listenToEvents, listenToRsvps, saveMyRsvp, checkIfAdmin, createEvent };
+export {
+  listenToEvents,
+  listenToRsvps,
+  saveMyRsvp,
+  checkIfAdmin,
+  createEvent,
+  listenToAccessRequests,
+  addEmailToAllowlist,
+  deleteAccessRequest,
+};

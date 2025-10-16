@@ -11,8 +11,7 @@ import {
   serverTimestamp,
   where,
   addDoc,
-  updateDoc,
-  deleteDoc,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const { db } = window.App.firebase;

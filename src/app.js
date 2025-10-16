@@ -6,7 +6,6 @@ const state = {
   selectedEvent: null,
   rsvps: [],
   unsubscribeRsvps: null,
-  unsubscribeEvents: null,
   isLoadingRsvps: false,
 };
 
@@ -20,26 +19,23 @@ function bootstrap() {
     onRsvpSubmit: handleRsvpSubmit,
   });
 
-  window.App.calendar.initCalendar({ onSelect: handleEventSelected });
+  window.App.calendar.initCalendar();
+  window.App.calendar.onEventSelected(handleEventSelected);
+  window.App.calendar.onEventsChanged(handleEventsUpdated);
 
   window.App.auth.listenToAuth(async (user) => {
     state.user = user;
     state.isAdmin = user ? await window.App.dataModel.checkIfAdmin(user.uid) : false;
     if (!user) {
       clearRsvpSubscription();
-      clearEventsSubscription();
       state.events = [];
       state.selectedEventId = null;
       state.selectedEvent = null;
-      window.App.calendar.setEvents([]);
       window.App.calendar.setActiveEvent(null);
       state.rsvps = [];
       state.isLoadingRsvps = false;
     } else if (state.selectedEventId) {
       subscribeToRsvps(state.selectedEventId);
-      subscribeToEvents();
-    } else if (user) {
-      subscribeToEvents();
     }
     window.App.ui.renderAuth({ user, isAdmin: state.isAdmin });
     renderDetails();
@@ -78,36 +74,6 @@ function clearRsvpSubscription() {
   }
   state.unsubscribeRsvps = null;
   state.isLoadingRsvps = false;
-}
-
-function subscribeToEvents() {
-  if (state.unsubscribeEvents) {
-    return;
-  }
-  state.unsubscribeEvents = window.App.dataModel.listenToEvents((events) => {
-    state.events = events.map(normalizeEvent).sort((a, b) => new Date(a.start) - new Date(b.start));
-    window.App.calendar.setEvents(state.events);
-    if (state.selectedEventId) {
-      const exists = state.events.find((event) => event.id === state.selectedEventId);
-      if (!exists) {
-        state.selectedEventId = null;
-        state.selectedEvent = null;
-        clearRsvpSubscription();
-        window.App.calendar.setActiveEvent(null);
-      } else {
-        state.selectedEvent = exists;
-        window.App.calendar.setActiveEvent(state.selectedEventId);
-      }
-    }
-    renderDetails();
-  });
-}
-
-function clearEventsSubscription() {
-  if (typeof state.unsubscribeEvents === "function") {
-    state.unsubscribeEvents();
-  }
-  state.unsubscribeEvents = null;
 }
 
 function handleGoogleSignIn() {
@@ -195,6 +161,23 @@ function normalizeEvent(event) {
     start: normalizeTime(event.start),
     end: normalizeTime(event.end),
   };
+}
+
+function handleEventsUpdated(events) {
+  state.events = events.map(normalizeEvent).sort((a, b) => new Date(a.start) - new Date(b.start));
+  if (state.selectedEventId) {
+    const exists = state.events.find((event) => event.id === state.selectedEventId);
+    if (!exists) {
+      state.selectedEventId = null;
+      state.selectedEvent = null;
+      clearRsvpSubscription();
+      window.App.calendar.setActiveEvent(null);
+    } else {
+      state.selectedEvent = exists;
+      window.App.calendar.setActiveEvent(state.selectedEventId);
+    }
+  }
+  renderDetails();
 }
 
 bootstrap();

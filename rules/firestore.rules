@@ -38,6 +38,23 @@ service cloud.firestore {
       return isSignedIn() && (isAdmin() || isCoach() || isAllowlisted());
     }
 
+    function isAllowed() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/roles/$(request.auth.uid)) ||
+        (request.auth.token.email != null &&
+         exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email)))
+      );
+    }
+
+    function validEventData() {
+      return request.resource.data.keys().hasAll(['title', 'start', 'end', 'createdBy'])
+        && request.resource.data.title is string
+        && request.resource.data.start is timestamp
+        && request.resource.data.end is timestamp
+        && request.resource.data.end > request.resource.data.start
+        && request.resource.data.createdBy is string;
+    }
+
     match /events/{eventId} {
       allow read: if canAccessEventData();
       allow create, update, delete: if isAdmin();

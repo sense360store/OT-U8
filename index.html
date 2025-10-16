@@ -3,61 +3,44 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Coach RSVP Tracker</title>
-  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css">
+  <title>Ossett U8s Training RSVP</title>
   <link rel="stylesheet" href="assets/styles.css">
-  <script>
-    window.__FIREBASE_CONFIG = {
-      apiKey: "YOUR_KEY",
-      authDomain: "YOUR_APP.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      appId: "YOUR_APP_ID"
-    };
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js" defer></script>
 </head>
 <body>
   <header class="site-header">
-    <div class="branding">
-      <img src="assets/logo.svg" alt="Team logo" class="logo">
-      <div>
+    <div class="branding" role="presentation">
+      <img
+        src="assets/ossett-town-juniors-logo.png"
+        alt="Ossett Town Juniors logo"
+        class="logo"
+        onerror="this.onerror=null;this.src='https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTyu6N7hTAm3wyYdXq_7aQm-hjdJWP-Icv0Og&s';"
+      >
+      <div class="branding-text">
         <h1>Coach RSVP Tracker</h1>
         <p class="tagline">Plan every session with confidence</p>
       </div>
+      <nav aria-label="Site navigation">
+        <ul class="nav-links">
+          <li><a href="#">Home</a></li>
+          <li><a href="#">Schedule</a></li>
+          <li><a href="#">Contact</a></li>
+        </ul>
+      </nav>
     </div>
-    <div id="auth-area" class="auth-area" aria-live="polite"></div>
   </header>
 
-  <main class="layout">
-    <section class="calendar-panel" aria-label="Training calendar">
-      <div class="calendar-toolbar">
-        <button type="button" id="view-month" class="button button-secondary" aria-pressed="true">Month</button>
-        <button type="button" id="view-list" class="button button-secondary" aria-pressed="false">List</button>
-      </div>
-      <div id="calendar" class="calendar" aria-live="polite"></div>
-    </section>
-
-    <aside class="details-panel" aria-label="Event details">
-      <div id="details" class="details">
-        <p class="placeholder">Select an event to review responses and share your plans.</p>
-      </div>
-    </aside>
+  <main class="site-main" id="main-content">
+    <div class="container">
+      <!-- Future content will live here. -->
+    </div>
   </main>
 
-  <div id="toast" class="toast" role="status" aria-live="assertive" hidden></div>
-
   <footer class="site-footer">
-    <small>Data powered by Firebase. Your identity is required to RSVP.</small>
+    <div class="container">
+      <p>&copy; <span id="year"></span> Ossett U8s. All rights reserved.</p>
+    </div>
   </footer>
 
-  <script type="module" src="src/firebase.js"></script>
-  <script type="module" src="src/auth.js"></script>
-  <script type="module" src="src/dataModel.js"></script>
-  <script type="module" src="src/access.js"></script>
-  <script type="module" src="src/calendar.js"></script>
-  <script type="module" src="src/rsvp.js"></script>
-  <script type="module" src="src/ui.js"></script>
-  <script type="module" src="src/app.js"></script>
+  <script src="src/app.js" type="module"></script>
 </body>
 </html>

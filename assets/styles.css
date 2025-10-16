@@ -31,15 +31,57 @@ body {
   }
 }
 
-.container {
-  width: min(100% - 2rem, 960px);
-  margin-inline: auto;
+.site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color, #e1e1e8);
+  background: var(--card-bg, #ffffff);
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
-.site-header {
-  background: linear-gradient(135deg, var(--brand), #274472);
-  color: #f9fafb;
-  padding-block: 1.25rem;
+.branding {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.branding-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.branding h1 {
+  margin: 0;
+  font-size: clamp(1.2rem, 2.5vw, 1.6rem);
+  word-break: break-word;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--muted-text, #4d4d4d);
+  font-size: clamp(0.8rem, 2vw, 0.95rem);
+}
+
+.logo {
+  width: clamp(48px, 12vw, 72px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+}
+
+.auth-area {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .header-content {

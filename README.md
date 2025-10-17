@@ -50,7 +50,7 @@ Makefile             # One-command setup, run, and seed helpers
    python3 -m http.server 4173
    ```
 
-   Open `http://localhost:4173` in a browser. The UI expects the backend at `http://localhost:8000`; override by running `localStorage.setItem('otj_api_base', 'http://your-api:port')` in the browser console.
+   Open `http://localhost:4173` in a browser. The UI reads the API base URL from the `<meta name="otj-api-base">` tag, a saved preference (set via the **API settings** button in the header), or falls back to `http://localhost:8000`.
 
 6. (Optional) Seed baseline data:
 
@@ -62,6 +62,24 @@ Makefile             # One-command setup, run, and seed helpers
    ARGONAUTS_MANAGER_EMAIL=coach.argonauts@example.com \
    make seed
    ```
+
+## Configuring the frontend API base
+
+The single-page frontend needs to know where to find the backend API. It checks the following in order and uses the first valid HTTPS (when hosted over HTTPS) value:
+
+1. The `<meta name="otj-api-base">` tag in `frontend/index.html`.
+2. A browser-specific override saved to `localStorage` (set via the **API settings** button in the header).
+3. The development default `http://localhost:8000`.
+
+Clearing the prompt when using the **API settings** button removes the override and reverts to the tag/default. Values saved in the browser are per-device and per-origin.
+
+### Deploying to GitHub Pages
+
+GitHub Pages always serves over HTTPS, so configure the frontend with an HTTPS API endpoint:
+
+1. Update the `<meta name="otj-api-base">` tag in `frontend/index.html` with your production API URL (for example, `https://api.example.com`).
+2. Publish the `frontend/` directory (or a copy of it) to the branch/folder GitHub Pages uses—commonly by copying its contents into `docs/` and enabling Pages from the repository settings.
+3. Once published, verify the deployed site loads without API errors. If the production API URL changes, update the meta tag and redeploy. End users can still adjust the value per-browser with the **API settings** button if the tag is blank.
 
 ## Environment variables
 

@@ -1,4 +1,71 @@
-const API_BASE = window.localStorage.getItem('otj_api_base') || 'http://localhost:8000';
+const DEFAULT_API_BASE = 'http://localhost:8000';
+const HTTPS_PAGE = window.location.protocol === 'https:';
+
+function normalizeApiBase(candidate) {
+  const trimmed = candidate?.trim();
+  if (!trimmed) {
+    throw new Error('value is empty');
+  }
+
+  let url;
+  try {
+    url = new URL(trimmed, window.location.href);
+  } catch (error) {
+    throw new Error('value is not a valid URL');
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error('URL must use http or https');
+  }
+
+  if (HTTPS_PAGE && url.protocol !== 'https:') {
+    throw new Error('HTTPS page requires an https:// API URL');
+  }
+
+  let path = url.pathname;
+  if (path === '/') {
+    path = '';
+  } else if (path.endsWith('/')) {
+    path = path.replace(/\/+$/, '');
+  }
+
+  return `${url.origin}${path}`;
+}
+
+function deriveApiBase() {
+  const sources = [
+    { value: document.querySelector('meta[name="otj-api-base"]')?.getAttribute('content') || '', label: 'meta tag' },
+    { value: window.localStorage.getItem('otj_api_base') || '', label: 'saved preference' },
+    { value: DEFAULT_API_BASE, label: 'default' },
+  ];
+
+  for (const source of sources) {
+    if (!source.value || !source.value.trim()) {
+      continue;
+    }
+    try {
+      const normalized = normalizeApiBase(source.value);
+      console.info(`Using API base from ${source.label}: ${normalized}`);
+      return normalized;
+    } catch (error) {
+      const message = `Skipping API base from ${source.label}: ${error.message}`;
+      if (source.label === 'meta tag') {
+        console.error(message);
+      } else {
+        console.warn(message);
+      }
+    }
+  }
+
+  const warning = HTTPS_PAGE
+    ? 'No HTTPS API base configured. Use the API settings button to provide a secure endpoint.'
+    : 'No API base configured. Use the API settings button to set one.';
+  console.error(warning);
+  throw new Error(warning);
+}
+
+const API_BASE = deriveApiBase();
+console.info('Change the API URL via the API settings button in the header. Clear the value to reset to defaults.');
 const state = {
   token: sessionStorage.getItem('otj_token') || null,
   memberships: {},
@@ -16,6 +83,7 @@ const appSection = document.getElementById('app');
 const authForm = document.getElementById('auth-form');
 const authHelp = document.getElementById('auth-help');
 const logoutBtn = document.getElementById('logout');
+const apiSettingsBtn = document.getElementById('api-settings');
 const teamSelect = document.getElementById('team-select');
 const teamRoleChip = document.getElementById('team-role');
 const sessionList = document.getElementById('session-list');
@@ -34,6 +102,37 @@ const toast = document.getElementById('toast');
 const exportCsv = document.getElementById('export-csv');
 const printRoster = document.getElementById('print-roster');
 const cancelInvite = document.getElementById('cancel-invite');
+
+if (apiSettingsBtn) {
+  apiSettingsBtn.addEventListener('click', () => {
+    const stored = window.localStorage.getItem('otj_api_base') || '';
+    const current = stored || API_BASE;
+    const next = window.prompt(
+      'Set the API base URL for this browser. Provide an https:// endpoint when served over HTTPS. Leave blank to clear the saved override.',
+      current,
+    );
+
+    if (next === null) {
+      return;
+    }
+
+    if (!next.trim()) {
+      window.localStorage.removeItem('otj_api_base');
+      window.alert('Saved API base cleared. Reloading…');
+      window.location.reload();
+      return;
+    }
+
+    try {
+      const normalized = normalizeApiBase(next);
+      window.localStorage.setItem('otj_api_base', normalized);
+      window.alert('API base saved. Reloading…');
+      window.location.reload();
+    } catch (error) {
+      window.alert(`Invalid API base: ${error.message}`);
+    }
+  });
+}
 
 async function apiFetch(path, options = {}) {
   const headers = options.headers ? { ...options.headers } : {};

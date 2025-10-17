@@ -1,1 +1,284 @@
+:root {
+  color-scheme: light dark;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: #f5f5f5;
+  color: #1f2933;
+  --brand-primary: #1f7a8c;
+  --brand-accent: #bfdbf7;
+  --brand-dark: #102a43;
+  --radius: 12px;
+}
 
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, var(--brand-accent), #fff 60%);
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background: var(--brand-dark);
+  color: #fff;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tagline {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+main {
+  flex: 1;
+  padding: 1rem;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+input, select, button, textarea {
+  font: inherit;
+  padding: 0.65rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(16, 42, 67, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  color: inherit;
+}
+
+input:focus, select:focus, button:focus, textarea:focus {
+  outline: 3px solid var(--brand-accent);
+  outline-offset: 1px;
+}
+
+button.primary {
+  background: var(--brand-primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.5);
+  color: inherit;
+  cursor: pointer;
+}
+
+button[hidden], #app[hidden] {
+  display: none !important;
+}
+
+fieldset {
+  border: 1px solid rgba(16,42,67,0.15);
+  border-radius: var(--radius);
+  padding: 1rem;
+  background: rgba(255,255,255,0.6);
+}
+
+.optional {
+  color: #486581;
+  font-size: 0.85rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.form-help {
+  min-height: 1.2rem;
+  font-size: 0.85rem;
+  color: #627d98;
+}
+
+.team-bar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.team-bar select {
+  min-width: 160px;
+}
+
+.chip {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(31, 122, 140, 0.1);
+  color: var(--brand-dark);
+  font-size: 0.85rem;
+}
+
+.dashboard {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.panel {
+  background: rgba(255,255,255,0.9);
+  border-radius: var(--radius);
+  padding: 1rem;
+  box-shadow: 0 15px 30px rgba(15, 23, 42, 0.1);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.session-list, .member-list, .invite-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.session-card {
+  border: 1px solid rgba(31, 122, 140, 0.2);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  background: #fff;
+  display: grid;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.session-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--brand-primary);
+}
+
+.session-card[aria-selected="true"] {
+  border-width: 2px;
+  border-color: var(--brand-primary);
+}
+
+.session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #334e68;
+}
+
+.badge {
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(31, 122, 140, 0.2);
+  color: var(--brand-dark);
+}
+
+.empty {
+  padding: 1rem;
+  background: rgba(191, 219, 247, 0.2);
+  border-radius: var(--radius);
+  color: #486581;
+}
+
+.detail-body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.detail-body dl {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.detail-body dt {
+  font-weight: 600;
+}
+
+.detail-body dd {
+  margin: 0;
+}
+
+.member-item, .invite-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  background: rgba(255,255,255,0.8);
+  border: 1px solid rgba(15,23,42,0.08);
+}
+
+.member-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.drawer {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(15,23,42,0.08);
+}
+
+#toast {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--brand-dark);
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  box-shadow: 0 20px 30px rgba(15, 23, 42, 0.2);
+}
+
+@media (min-width: 768px) {
+  .dashboard {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: stretch;
+  }
+  #session-detail {
+    grid-column: span 2;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+  .app-header, #auth-section, #toast, .main-nav, .actions, #invite-form {
+    display: none !important;
+  }
+  .panel {
+    box-shadow: none;
+    border: 1px solid #e0e0e0;
+  }
+}

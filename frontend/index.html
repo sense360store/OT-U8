@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OTJ U8s Team Hub</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header" role="banner">
+    <div class="brand">
+      <h1>OTJ U8s</h1>
+      <p class="tagline">Organise. Train. Join.</p>
+    </div>
+    <nav aria-label="Primary" class="main-nav">
+      <button id="logout" class="ghost" aria-label="Sign out" hidden>Sign out</button>
+    </nav>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <section id="auth-section" aria-labelledby="auth-heading">
+      <h2 id="auth-heading">Sign in with your invite</h2>
+      <form id="auth-form" novalidate>
+        <label for="auth-email">Email address</label>
+        <input type="email" id="auth-email" autocomplete="email" required />
+
+        <label for="auth-code">Invite code</label>
+        <input type="text" id="auth-code" autocomplete="one-time-code" required />
+
+        <label for="auth-season">Season access code <span class="optional" aria-hidden="true">(if provided)</span></label>
+        <input type="text" id="auth-season" autocomplete="off" />
+
+        <fieldset>
+          <legend>Profile details</legend>
+          <label for="profile-name">Preferred name</label>
+          <input type="text" id="profile-name" autocomplete="name" />
+
+          <label for="profile-guardian">Guardian</label>
+          <input type="text" id="profile-guardian" autocomplete="name" />
+
+          <label for="profile-phone">Contact number</label>
+          <input type="tel" id="profile-phone" autocomplete="tel" />
+        </fieldset>
+        <button type="submit" class="primary">Send magic link</button>
+        <p class="form-help" id="auth-help"></p>
+      </form>
+    </section>
+
+    <section id="app" hidden>
+      <div class="team-bar" role="region" aria-label="Team selector">
+        <label for="team-select">Team</label>
+        <select id="team-select"></select>
+        <span id="team-role" class="chip" aria-live="polite"></span>
+      </div>
+
+      <section class="dashboard" aria-live="polite">
+        <div class="panel" id="sessions-panel" aria-labelledby="sessions-heading">
+          <div class="panel-header">
+            <h2 id="sessions-heading">Sessions</h2>
+            <button id="new-session" class="primary" hidden>Create session</button>
+          </div>
+          <div id="session-empty" class="empty" role="status">No sessions scheduled yet.</div>
+          <ul id="session-list" class="session-list" aria-describedby="session-empty"></ul>
+        </div>
+
+        <div class="panel" id="session-detail" aria-live="polite" aria-labelledby="detail-heading">
+          <div class="panel-header">
+            <h2 id="detail-heading">Session details</h2>
+            <button id="lock-session" class="ghost" hidden></button>
+          </div>
+          <div id="detail-content" class="detail-body">
+            <p class="empty">Select a session to view details.</p>
+          </div>
+        </div>
+
+        <div class="panel" id="membership-panel" aria-labelledby="membership-heading">
+          <div class="panel-header">
+            <h2 id="membership-heading">Roster</h2>
+            <div class="actions">
+              <button id="export-csv" class="ghost">Export CSV</button>
+              <button id="print-roster" class="ghost">Print roster</button>
+              <button id="invite-member" class="primary" hidden>Invite</button>
+            </div>
+          </div>
+          <div id="members-empty" class="empty">No team members yet.</div>
+          <ul id="members-list" class="member-list" aria-describedby="members-empty"></ul>
+          <div id="invite-form" class="drawer" hidden>
+            <form id="invite-create" novalidate>
+              <label for="invite-email">Invite email</label>
+              <input type="email" id="invite-email" required />
+              <label for="invite-role">Role</label>
+              <select id="invite-role">
+                <option value="player">Player</option>
+                <option value="coach">Coach</option>
+                <option value="manager">Manager</option>
+              </select>
+              <button type="submit" class="primary">Send invite</button>
+              <button type="button" id="cancel-invite" class="ghost">Cancel</button>
+              <div id="invite-status" class="form-help" role="status"></div>
+            </form>
+            <div>
+              <h3>Pending invites</h3>
+              <ul id="invite-list" class="invite-list"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="assertive" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -20,6 +20,16 @@ def env_int(key: str, default: int) -> int:
         return default
 
 
+def env_list(key: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    items = [item.strip() for item in value.split(",") if item.strip()]
+    if not items:
+        return default
+    return tuple(items)
+
+
 @dataclass(frozen=True)
 class Settings:
     database_path: str = os.getenv("DATABASE_PATH", "./otj_u8.db")
@@ -34,6 +44,17 @@ class Settings:
     smtp_password: str | None = os.getenv("SMTP_PASSWORD")
     email_sender: str | None = os.getenv("EMAIL_SENDER")
     enable_email: bool = env_bool("ENABLE_EMAIL", False)
+    # CORS configuration (comma-separated origins; use "*" to allow any origin)
+    cors_allowed_origins: tuple[str, ...] = env_list("CORS_ALLOWED_ORIGINS", ("*",))
+    cors_allowed_methods: tuple[str, ...] = env_list(
+        "CORS_ALLOWED_METHODS",
+        ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"),
+    )
+    cors_allowed_headers: tuple[str, ...] = env_list(
+        "CORS_ALLOWED_HEADERS",
+        ("Authorization", "Content-Type"),
+    )
+    cors_allow_credentials: bool = env_bool("CORS_ALLOW_CREDENTIALS", False)
 
     @property
     def invite_ttl(self) -> timedelta:

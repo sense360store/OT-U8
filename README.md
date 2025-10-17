@@ -77,7 +77,14 @@ Makefile             # One-command setup, run, and seed helpers
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP credentials | unset |
 | `EMAIL_SENDER` | From address for notification emails | unset |
 | `ENABLE_EMAIL` | Set to `true` to send notifications when SMTP is configured | `false` |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated allowlist of origins permitted to call the API | `*` |
+| `CORS_ALLOWED_METHODS` | Methods echoed in `Access-Control-Allow-Methods` | `GET, POST, PUT, PATCH, DELETE, OPTIONS` |
+| `CORS_ALLOWED_HEADERS` | Headers echoed in `Access-Control-Allow-Headers` | `Authorization, Content-Type` |
+| `CORS_ALLOW_CREDENTIALS` | Set to `true` to send `Access-Control-Allow-Credentials: true` | `false` |
 | `TITANS_MANAGER_EMAIL` … `ARGONAUTS_MANAGER_EMAIL` | Seed script manager assignments | unset |
+
+For example, when deploying behind GitHub Pages you might set `CORS_ALLOWED_ORIGINS=https://your-org.github.io` so browsers can
+call the API, and enable `CORS_ALLOW_CREDENTIALS=true` if session cookies need to flow across origins.
 
 ## Features
 

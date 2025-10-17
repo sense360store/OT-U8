@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import json
 import logging
 from http import HTTPStatus
-from typing import Callable, Dict
 from wsgiref.simple_server import make_server
 
 from .auth import handle_magic_login
+from .config import settings
 from .db import db
-from .http import Request, Response, error_response, json_response, router
+from .http import Request, Response, error_response, router
 from .routes import invites, rsvps, sessions, teams
 
 logger = logging.getLogger("otj_u8s")
@@ -44,20 +43,79 @@ def register_routes() -> None:
     _routes_registered = True
 
 
+def _select_cors_origin(request: Request) -> str | None:
+    origin = request.headers.get("Origin")
+    if not origin:
+        return None
+    allowed_origins = settings.cors_allowed_origins
+    if "*" in allowed_origins:
+        if settings.cors_allow_credentials:
+            return origin
+        return "*"
+    if origin in allowed_origins:
+        return origin
+    return None
+
+
+def _build_cors_headers(request: Request, include_preflight: bool = False) -> dict[str, str]:
+    origin = _select_cors_origin(request)
+    if origin is None:
+        return {}
+    headers: dict[str, str] = {"Access-Control-Allow-Origin": origin}
+    if origin != "*":
+        headers["Vary"] = "Origin"
+    if settings.cors_allow_credentials:
+        headers["Access-Control-Allow-Credentials"] = "true"
+    allow_methods = ", ".join(settings.cors_allowed_methods)
+    allow_headers = ", ".join(settings.cors_allowed_headers)
+    if include_preflight:
+        headers["Access-Control-Allow-Methods"] = allow_methods
+        headers["Access-Control-Allow-Headers"] = allow_headers
+    return headers
+
+
+def _merge_headers(base_headers: list[tuple[str, str]], extra: dict[str, str]) -> list[tuple[str, str]]:
+    headers: dict[str, str] = {}
+    for key, value in base_headers:
+        headers[key] = value
+    for key, value in extra.items():
+        if key.lower() == "vary" and key in headers:
+            existing_values = {item.strip() for item in headers[key].split(",") if item.strip()}
+            existing_values.update(item.strip() for item in value.split(",") if item.strip())
+            headers[key] = ", ".join(sorted(existing_values))
+        else:
+            headers[key] = value
+    return [(key, value) for key, value in headers.items()]
+
+
+def _handle_preflight(request: Request) -> Response:
+    headers = _build_cors_headers(request, include_preflight=True)
+    if not headers:
+        return error_response("CORS origin not allowed", HTTPStatus.FORBIDDEN)
+    return Response(status=HTTPStatus.NO_CONTENT, body=None, headers=headers)
+
+
 def application(environ, start_response):
     register_routes()
     request = Request(environ)
-    match = router.match(request.method, request.path)
-    if match is None:
-        response = error_response("Not found", HTTPStatus.NOT_FOUND)
+    if request.method == "OPTIONS":
+        response = _handle_preflight(request)
     else:
-        handler, params = match
-        try:
-            response = handler(request, **params)
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.exception("Unhandled error: %s", exc)
-            response = error_response("Server error", HTTPStatus.INTERNAL_SERVER_ERROR)
+        match = router.match(request.method, request.path)
+        if match is None:
+            response = error_response("Not found", HTTPStatus.NOT_FOUND)
+        else:
+            handler, params = match
+            try:
+                response = handler(request, **params)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.exception("Unhandled error: %s", exc)
+                response = error_response("Server error", HTTPStatus.INTERNAL_SERVER_ERROR)
     status_code, headers, body = response.to_wsgi()
+    if status_code < 400:
+        cors_headers = _build_cors_headers(request, include_preflight=True)
+        if cors_headers:
+            headers = _merge_headers(headers, cors_headers)
     start_response(f"{status_code} {HTTPStatus(status_code).phrase}", headers)
     return [body]
 

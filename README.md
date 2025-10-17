@@ -16,10 +16,9 @@ backend/
     utils/           # Time helpers
   migrations/        # SQL migration files
   seed.py            # Seed Titans/Trojans/Gladiators/Spartans/Argonauts teams
-frontend/
-  index.html         # Mobile-first single page application
-  styles.css         # OTJ U8s branding and responsive layout
-  app.js             # Authentication, RBAC-aware UI, CSV export, print view
+app.js               # Authentication, RBAC-aware UI, CSV export, print view
+index.html           # Mobile-first single page application
+styles.css           # OTJ U8s branding and responsive layout
 Makefile             # One-command setup, run, and seed helpers
 ```
 
@@ -43,10 +42,9 @@ Makefile             # One-command setup, run, and seed helpers
 
    The server listens on `http://localhost:8000`.
 
-5. Serve the static frontend (e.g. with Python):
+5. Serve the static frontend from the repository root (e.g. with Python):
 
    ```bash
-   cd frontend
    python3 -m http.server 4173
    ```
 
